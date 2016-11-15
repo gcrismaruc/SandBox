@@ -47,7 +47,7 @@ int Calibration::showAxes(USHORT * imageArray) {
 	this->setROI(depthImage, x1, x2, y1, y2);
 	for (int y = y1; y < y2; y++)
 		for(int x = x1; x < x2; x++)
-			save.at<ushort>(y,x) +=10000;
+			save.at<ushort>(y,x) +=1000;
 	imshow("axis", save);
 	int pressedKey =  waitKey(10);
 	if(pressedKey == 49){
@@ -88,38 +88,44 @@ void Calibration::showCircles() {
 	int nrFrame = 0;
 
 	while(nrFrame != 12){
-		ostringstream imageName;
-		imageName<<"calibration\\calibration" + to_string(nrFrame) << ".png";
-
-		Mat src = imread(imageName.str().c_str());
+		const string imageName = "calibration\\calibration" + to_string(nrFrame) + ".png";;
+		
+		Mat src = imread(imageName, CV_LOAD_IMAGE_UNCHANGED | CV_LOAD_IMAGE_ANYDEPTH);
 		Mat src_gray;
+		Mat tresh = src.clone();
 	
-		cvtColor( src, src_gray, CV_BGR2GRAY );
-		cv::imshow("gray", src_gray);
-		vector<Vec3f> circles;
-		medianBlur(src_gray, src_gray, 5);
-
-		cv::HoughCircles( src_gray, circles, CV_HOUGH_GRADIENT, 1, src_gray.rows/4,  7, 24, 0, 0);
-	
+		cout<<"\n\t nr.channels = "<<src.channels();
 		
-		for( size_t i = 0; i < circles.size(); i++ )
-		{
+	     int nrPixels = 0;
+		 int nr_x = 0;
+		 int nr_y = 0;
+		for (int y = 0; y < 480; y++){
+			for(int x = 0; x < 640; x++)
+			{	
+				if(src.at<ushort>(Point(x, y)) > 1000 && src.at<ushort>(Point(x, y)) < 1150)
+					{
+						nrPixels ++;
+						nr_x += x;
+						nr_y += y;
 
-			cout<<"aici we\n";
-			
-			Point center(cvRound(circles[i][0]), cvRound(circles[i][1]));
-			int zLevel = src_gray.at<Vec4b>(Point(center.x, center.y))[2];
-			int zInMM = (zLevel * 2048) / 256;
-			int zInPixels = zInMM *  3.779528;
-			file<<center.x << " " << center.y<<" "<<zInPixels<<"\n";
 
-			int radius = cvRound(circles[i][2]);
-			// circle center
-			circle( src, center, 3, Scalar(0,255,0), -1, 8, 0 );
-			// circle outline
-			circle( src, center, radius, Scalar(0,0,255), 3, 8, 0 );
+						src.at<ushort>(Point(x, y)) = 54000;
+						
+				} else {
+					src.at<ushort>(Point(x, y)) = 0;					
+				}
+			}
 		}
-		
+		imshow("tresh", src);
+
+		//cout<<src.data;
+
+	
+		int x = nr_x/nrPixels;
+		int y = nr_y/nrPixels;
+		int z = (int)tresh.at<ushort>(Point(x, y));
+		Point center(x, y);
+		file<<x << " " << y<<" "<<z<<"\n";
 		imshow("test", src);
 		waitKey(0);
 	nrFrame++;
@@ -127,17 +133,6 @@ void Calibration::showCircles() {
 
 	file.close();
 
-
-	/*Mat test = imread("calibration\\calibration2.jpg");
-
-	line(test, Point(1, 1), Point(1, 479), Scalar(250, 250, 250), 2, 8);
-	line(test, Point(1, 1), Point(639, 1), Scalar(250, 250, 250), 2, 8);
-	line(test, Point(1, 479), Point(639, 479), Scalar(250, 250, 250), 2, 8);
-	line(test, Point(639, 1), Point(639, 479), Scalar(250, 250, 250), 2, 8);
-
-
-	imshow("test", test);
-	waitKey(0);*/
 }
 
 void Calibration::readConfig() {
@@ -384,7 +379,7 @@ void Calibration::getCoef(){
 		cout<<cvmGet(coordonateProiector, i, 0)<<endl;
 	}
 
-	cvSolve(matrice, coordonateProiector, solutieQ, CV_QR);
+	cvSolve(matrice, coordonateProiector, solutieQ, CV_SVD);
 	cout<<endl<<"Solutia:\n";
 
 	for(int i = 0; i <11; i++)
@@ -416,8 +411,8 @@ Point2d * Calibration::transformPoint(Point3d kinect) {
 }
 
 void Calibration::doTransformationOfImage(){
-	Mat imgKinect = imread("calibration\\calibration1.jpg");
-	Mat imgProjector = Mat(Size(640, 480), CV_16UC4,Scalar(255, 255, 255));
+	Mat imgKinect = imread("calibration\\calibration1.png");
+	Mat imgProjector = Mat(Size(640, 480), CV_16UC1);
 	Size size = imgKinect.size();
 	int width = size.width;
 	int height = size.height;
@@ -426,15 +421,15 @@ void Calibration::doTransformationOfImage(){
 	{
 		for(int x = 0; x < width; x++)
 		{
-			int z = imgKinect.at<Vec4b>(Point(x, y))[1];
-			int zInMM = (z * 2048) / 256;
-			int zInPixels = zInMM *  3.779528;
+			int z = imgKinect.at<ushort>(Point(x, y));
+			//cout<<z<<" ";
 			Point3d kinect = Point3d(x, y, z);
 			Point2d * projector = this->transformPoint(kinect);
 			
 			//cout<<" xk= "<<x<<" xp= "<<projector->x<<" yk= "<<y<<" yp= "<<projector->y<<endl;
-			imgProjector.at<Vec4b>(projector->x, projector->y) = z;
+			imgProjector.at<ushort>(Point(projector->x, projector->y)) = z+4000;
 		}
+		//cout<<endl;
 	}
 
 
