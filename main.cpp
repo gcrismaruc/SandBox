@@ -238,7 +238,7 @@ int main(){
 	}*/
 
 
-	/*
+	
 	Aquisition *aq = new Aquisition();
 	const int eventCount = 1;
     HANDLE hEvents[eventCount];
@@ -246,8 +246,8 @@ int main(){
 	hEvents[0] = aq->m_hNextDepthFrameEvent;
 	HRESULT hr = aq->CreateFirstConnected();
 
-	MsgWaitForMultipleObjects(eventCount, hEvents, FALSE, INFINITE, QS_ALLINPUT);
-*/
+	//MsgWaitForMultipleObjects(eventCount, hEvents, FALSE, INFINITE, QS_ALLINPUT);
+
 
 	//
 	//DepthMap *dm = new DepthMap(aq);
@@ -257,25 +257,19 @@ int main(){
 	//while(true) {
 	//	dm->ColorTheImage(dm->aquisition.Update());
 	//}
-
-	Calibration *c = new Calibration();
-	//c->getFrames();
-	//c->showCircles();
-	/*c->readConfig();
-	c->showCircles();*/
-	//c->getFrames();
-
-	/*c->getMouseCoordinates();
+	Calibration *c = new Calibration(aq);
+	
+	//c->getMouseCoordinates();
 	c->savePointsForAxes();
 	c->readConfig();
 	c->getFrames();
-	*/
-	/*c->showCircles();
+	
+	//c->showCircles();
 	
 	c->getCoef();
 	
-	c->doTransformationOfImage();*/
+	c->doTransformationOfImage();
 
-	c->detectCircle();
+	//c->detectCircle();
 	return 0;
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <sstream>
+
 #include "DepthMap.h"
 
 using namespace std;
@@ -9,6 +10,13 @@ using namespace cv;
 class Calibration {
 
 public:
+	static double FX;
+	static double CX;
+	static double FY;
+	static double CY; 
+	static int THRESH_MIN;
+	static int THRESH_MAX;
+
 	Aquisition aquisition;
 	static int nrFrame;
 	static int nrClick;
@@ -18,12 +26,17 @@ public:
 	static int y2;
 	static CvMat *solutieQ;
 
-	int config[12][6];
+	int config[36][6];
+
+	vector<pair<unsigned int, unsigned int>> vecIntersectionPoints;
+	vector<Point3i> vecOfDetectedCoordinates;
 
 	Calibration(Aquisition *aquisition);
 	Calibration();
 	~Calibration();
 	void createAxis(int x1, int y1, int x2, int y2, int x3, int y3, Mat *image);
+	void createAxis(int x, int y, Mat *image);
+
 	int showAxes(USHORT * imageArray);
 	void getFrames();
 	void showCircles();
@@ -36,6 +49,8 @@ public:
 	void getCoef();
 	Point2d * transformPoint(Point3d kinect);
 	void doTransformationOfImage();
+	void drawGrid(Mat image);
 
+	void detectCircleForImage(Mat eightBitsImage, Mat sixteenBitsImage);
 };
 

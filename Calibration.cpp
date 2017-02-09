@@ -6,15 +6,28 @@
 #include <string>
 #include <fstream>
 #include <math.h>
+#include <NuiSensor.h>
+#include <NuiImageCamera.h>
+#include <NuiApi.h>
+#include <NuiSkeleton.h>
+
 
 
 int Calibration::nrFrame = 0;
 int Calibration::nrClick = 0;
 int Calibration::x1 = 0;
 int Calibration::y1 = 0;
-int Calibration::x2 = 0;
-int Calibration::y2 = 0;
+int Calibration::x2 = 640;
+int Calibration::y2 = 480;
+int Calibration::THRESH_MAX = 2150;
+int Calibration::THRESH_MIN = 2050;
+
 CvMat *Calibration::solutieQ = cvCreateMat(11, 1, CV_64FC1);
+
+double Calibration::FX = 5.4735210296154094e+002;
+double Calibration::CX = 3.1075353754346150e+002;
+double Calibration::FY = 5.4392478916448886e+002;
+double Calibration::CY = 2.6349428097343048e+002;
 
 Calibration::Calibration(Aquisition *aquisition) {
 	this->aquisition = *aquisition;
@@ -33,33 +46,39 @@ void Calibration::createAxis(int x1, int y1, int x2, int y2, int x3, int y3, Mat
 	line(*image, Point(x2, y2), Point(x3, y3), Scalar(32000, 32000, 32000), 2, 8);
 }
 
+void Calibration::createAxis(int x, int y, Mat *image) {
+	line(*image, Point(x - 10, y), Point(x + 10, y), Scalar((unsigned short)-1), 1, 8);
+	line(*image, Point(x, y - 10), Point(x, y + 10), Scalar((unsigned short)-1), 1, 8);
+}
+
 int Calibration::showAxes(USHORT * imageArray) {
 
-	Mat depthImage = Mat(Size(640, 480), CV_16UC1, imageArray).clone();
+	Mat depthImage = Mat(Size(640, 480), CV_16UC1, imageArray);
 	Mat save = depthImage.clone();
 
 	cvNamedWindow("axis", CV_WINDOW_NORMAL );
 	cvSetWindowProperty("axis", CV_WND_PROP_FULLSCREEN, CV_WINDOW_FULLSCREEN);
-	this->createAxis(config[nrFrame][0], config[nrFrame][1], config[nrFrame][2], config[nrFrame][3], config[nrFrame][4],config[nrFrame][5], &save);
+	//this->createAxis(config[nrFrame][0], config[nrFrame][1], config[nrFrame][2], config[nrFrame][3], config[nrFrame][4],config[nrFrame][5], &save);
+	this->createAxis(vecIntersectionPoints[nrFrame].first, vecIntersectionPoints[nrFrame].second, &save);
 
-
-	this->setROI(save, x1, x2, y1, y2);
-	this->setROI(depthImage, x1, x2, y1, y2);
-	for (int y = y1; y < y2; y++)
+	//this->setROI(save, x1, x2, y1, y2);
+	//this->setROI(depthImage, x1, x2, y1, y2);
+	/*for (int y = y1; y < y2; y++)
 		for(int x = x1; x < x2; x++)
-			save.at<ushort>(y,x) +=1000;
+			save.at<ushort>(y,x) +=4000;*/
 	imshow("axis", save);
 	int pressedKey =  waitKey(10);
 	if(pressedKey == 49){
+		Mat depthImageForCircle = Mat(Size(640, 480), CV_8UC1, imageArray);
 		vector<int> compression_params;
 		compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
 		compression_params.push_back(9);
-		ostringstream imageName;
-		imageName<<"calibration\\calibration" + to_string(nrFrame) << ".png";
-		cout<<imageName.str()<<endl;
-		IplImage img = depthImage;
-
-		imwrite(imageName.str().c_str(), depthImage, compression_params);
+		const string imageName = "calibration\\calibration" + to_string(nrFrame) + ".png";
+		
+		cout<<imageName<<endl;
+		
+		imwrite(imageName, depthImageForCircle, compression_params);
+		detectCircleForImage(depthImageForCircle, depthImage);
 		nrFrame++;
 	}
 
@@ -71,7 +90,7 @@ void Calibration::getFrames(){
 	int a = 0;
 	int count = 0;
 
-	while(count != 12) {
+	while(count != 36) {
 		cout<<"aici\n";
 		while(a != 49){
 			a = this->showAxes(this->aquisition.Update());
@@ -79,6 +98,60 @@ void Calibration::getFrames(){
 		count++;
 		a = 0;
 	}
+
+	cout<<"End of getFrames\n";
+}
+
+void Calibration::detectCircleForImage(Mat eightBitsImage, Mat sixteenBitsImage) {
+
+		Mat src_gray;
+		Mat thresh = sixteenBitsImage.clone();
+
+	    int nrPixels = 0;
+		int nr_x = 0;
+		int nr_y = 0;
+
+		Mat labels,stats,centroids;
+		int noComp;
+
+		namedWindow( "lfld", WINDOW_AUTOSIZE );
+		imshow ("lfld", thresh);
+
+		noComp = connectedComponentsWithStats(thresh, labels, stats, centroids, 8, CV_32S); 
+
+		Mat circle;
+
+		compare(labels, 1, circle, CMP_EQ);
+
+		imshow("circle", circle);
+		waitKey(0);
+
+		/*for (int y = 0; y < 480; y++) {
+			for(int x = 0; x < 640; x++) {	
+				if(src.at<ushort>(Point(x, y)) != 0 && !(src.at<ushort>(Point(x, y)) > THRESH_MIN && src.at<ushort>(Point(x, y)) < THRESH_MAX))
+				{
+					nrPixels ++;
+					nr_x += x;
+					nr_y += y;
+
+					src.at<ushort>(Point(x, y)) = 54000;
+				} else {
+					src.at<ushort>(Point(x, y)) = 0;					
+				}
+			}
+		}*/
+
+		//imshow("thresh", src);
+		//waitKey(4000);
+
+		int x = nr_x/nrPixels;
+		int y = nr_y/nrPixels;
+		int z = (int)thresh.at<ushort>(Point(x, y));
+		/*Point center(x, y);
+		src.at<ushort>(Point(x, y)) = 0;
+*/
+		cout<<x<<" "<<y<<" "<<z<<endl;
+		vecOfDetectedCoordinates.push_back(Point3i(x, y, z));
 }
 
 void Calibration::showCircles() {
@@ -87,7 +160,7 @@ void Calibration::showCircles() {
 
 	int nrFrame = 0;
 
-	while(nrFrame != 12){
+	while(nrFrame != 36){
 		const string imageName = "calibration\\calibration" + to_string(nrFrame) + ".png";;
 		
 		Mat src = imread(imageName, CV_LOAD_IMAGE_UNCHANGED | CV_LOAD_IMAGE_ANYDEPTH);
@@ -102,12 +175,12 @@ void Calibration::showCircles() {
 		for (int y = 0; y < 480; y++){
 			for(int x = 0; x < 640; x++)
 			{	
-				if(src.at<ushort>(Point(x, y)) > 1000 && src.at<ushort>(Point(x, y)) < 1150)
+
+				if(src.at<ushort>(Point(x, y)) != 0 && !(src.at<ushort>(Point(x, y)) > 1090 && src.at<ushort>(Point(x, y)) < 1230))
 					{
 						nrPixels ++;
 						nr_x += x;
 						nr_y += y;
-
 
 						src.at<ushort>(Point(x, y)) = 54000;
 						
@@ -115,16 +188,16 @@ void Calibration::showCircles() {
 					src.at<ushort>(Point(x, y)) = 0;					
 				}
 			}
+			cout<<endl;
 		}
 		imshow("tresh", src);
-
-		//cout<<src.data;
 
 	
 		int x = nr_x/nrPixels;
 		int y = nr_y/nrPixels;
 		int z = (int)tresh.at<ushort>(Point(x, y));
 		Point center(x, y);
+		src.at<ushort>(Point(x, y)) = 0;
 		file<<x << " " << y<<" "<<z<<"\n";
 		imshow("test", src);
 		waitKey(0);
@@ -137,22 +210,22 @@ void Calibration::showCircles() {
 
 void Calibration::readConfig() {
 
-	ifstream file("coordinates.txt");
+	/*ifstream file("coordinates.txt");
 
-	for(int i = 0; i < 12; i++) {
+	for(int i = 0; i < 36; i++) {
 		for(int j = 0; j < 6; j++) {
 			file>>this->config[i][j];
 		}
+	}*/
+
+	ifstream file("coordonateProiector.txt");
+
+	while(!file.eof()){
+		unsigned int x, y;
+		file>>x>>y;
+		vecIntersectionPoints.push_back(make_pair(x, y));
 	}
 
-	for(int i = 0; i < 12; i++) {
-		for(int j = 0; j < 6; j++) {
-
-
-			cout<<this->config[i][j]<<" ";
-		}
-		cout<<endl;
-	}
 	file.close();
 }
 
@@ -218,7 +291,6 @@ void Calibration::setROI(Mat &img, int x1, int x2, int y1, int y2){
 void Calibration::savePointsForAxes(){
 	
 	ofstream f("coordinates.txt");
-	//f<<"coordonatele sunt: "<<x1<<"  "<<y1<<" "<<x2<<" "<<y2<<endl;
 	f << (x2 + 5 * x1) / 6 << " "<<(x2 + 5 * x1) / 6 << " "<< (x2 + 5 * x1) / 6 << " " << ( y2 + 7 * y1) / 8 << " " << ( y2 + 7 * y1) / 8 << " " << ( y2 + 7 * y1) / 8 <<"\n";
 	f << (x2 + x1) / 2 << " " << (x2 + x1) / 2 << " "<< (x2 + x1) / 2 << " "<< ( y2 + 7 * y1) / 8 << " " << ( y2 + 7 * y1) / 8 << " " << ( y2 + 7 * y1) / 8<<"\n";
 	f << ((5 * x2) + x1) / 6 << " "<< ((5 * x2) + x1) / 6 << " "<< ((5 * x2) + x1) / 6 << " " << ( y2 + 7 * y1) / 8 << " " << ( y2 + 7 * y1) / 8 << " " << ( y2 + 7 * y1) / 8<<"\n";
@@ -233,6 +305,37 @@ void Calibration::savePointsForAxes(){
 	
 	f << (((x2 + x1) / 2) - 30) << " "<< (((x2 + x1) / 2) - 30) << " "<< (((x2 + x1) / 2) - 30) << " "<< ((y1 + y2) / 2)<< " "<< ((y1 + y2) / 2)<< " "<< ((y1 + y2) / 2)<< "\n";
 	f << (((x2 + x1) / 2) + 30) << " "<< (((x2 + x1) / 2) + 30) << " "<< (((x2 + x1) / 2) + 30) << " "<< ((y1 + y2) / 2)<< " "<< ((y1 + y2) / 2)<< " "<< ((y1 + y2) / 2)<< "\n";
+	
+	f << (x2 + 5 * x1) / 6 << " "<<(x2 + 5 * x1) / 6 << " "<< (x2 + 5 * x1) / 6 << " " << ( y2 + 7 * y1) / 8 << " " << ( y2 + 7 * y1) / 8 << " " << ( y2 + 7 * y1) / 8 <<"\n";
+	f << (x2 + x1) / 2 << " " << (x2 + x1) / 2 << " "<< (x2 + x1) / 2 << " "<< ( y2 + 7 * y1) / 8 << " " << ( y2 + 7 * y1) / 8 << " " << ( y2 + 7 * y1) / 8<<"\n";
+	f << ((5 * x2) + x1) / 6 << " "<< ((5 * x2) + x1) / 6 << " "<< ((5 * x2) + x1) / 6 << " " << ( y2 + 7 * y1) / 8 << " " << ( y2 + 7 * y1) / 8 << " " << ( y2 + 7 * y1) / 8<<"\n";
+	f << (x2 + 5 * x1) / 6 << " "<< (x2 + 5 * x1) / 6 << " "<< (x2 + 5 * x1) / 6 << " " << ( 7 * y2 - y1) / 8<< " " << ( 7 * y2 - y1) / 8<< " " << ( 7 * y2 - y1) / 8 <<"\n";
+	f << (x2 + x1) / 2 << " "<< (x2 + x1) / 2 << " "<< (x2 + x1) / 2 << " " << ( 7 * y2 - y1) / 8<< " " << ( 7 * y2 - y1) / 8 << " " << ( 7 * y2 - y1) / 8  <<"\n";
+	f << ((5 * x2) + x1) / 6 << " "<< ((5 * x2) + x1) / 6 << " "<< ((5 * x2) + x1) / 6 << " " << ( 7 * y2 - y1) / 8 << " " << ( 7 * y2 - y1) / 8<< " " << ( 7 * y2 - y1) / 8<<"\n";
+
+	f << (x2 + 3 * x1) / 4 << " "<< (x2 + 3 * x1) / 4 << " "<< (x2 + 3 * x1) / 4 << " "<<(y2 + 2 * y1) / 3<<" "<<(y2 + 2 * y1) / 3<<" "<<(y2 + 2 * y1) / 3<<" "<<"\n";
+	f << (3 * x2 + x1) / 4 << " "<< (3 * x2 + x1) / 4 << " "<< (3 * x2 + x1) / 4 << " "<<(y2 + 2 * y1) / 3<<" "<<(y2 + 2 * y1) / 3<<" "<<(y2 + 2 * y1) / 3<<" "<<"\n";
+	f << (x2 + 3 * x1) / 4 << " "<< (x2 + 3 * x1) / 4 << " "<< (x2 + 3 * x1) / 4 << " "<<(2 * y2 + y1) / 3<<" "<< " "<<(2 * y2 + y1) / 3<<" "<< " "<<(2 * y2 + y1) / 3<<"\n";
+	f << (3 * x2 + x1) / 4 << " "<< (3 * x2 + x1) / 4 << " "<< (3 * x2 + x1) / 4 << " "<<(2 * y2 + y1) / 3<<" "<< " "<<(2 * y2 + y1) / 3<<" "<< " "<<(2 * y2 + y1) / 3<<"\n";
+	
+	f << (((x2 + x1) / 2) - 30) << " "<< (((x2 + x1) / 2) - 30) << " "<< (((x2 + x1) / 2) - 30) << " "<< ((y1 + y2) / 2)<< " "<< ((y1 + y2) / 2)<< " "<< ((y1 + y2) / 2)<< "\n";
+	f << (((x2 + x1) / 2) + 30) << " "<< (((x2 + x1) / 2) + 30) << " "<< (((x2 + x1) / 2) + 30) << " "<< ((y1 + y2) / 2)<< " "<< ((y1 + y2) / 2)<< " "<< ((y1 + y2) / 2)<< "\n";
+
+	f << (x2 + 5 * x1) / 6 << " "<<(x2 + 5 * x1) / 6 << " "<< (x2 + 5 * x1) / 6 << " " << ( y2 + 7 * y1) / 8 << " " << ( y2 + 7 * y1) / 8 << " " << ( y2 + 7 * y1) / 8 <<"\n";
+	f << (x2 + x1) / 2 << " " << (x2 + x1) / 2 << " "<< (x2 + x1) / 2 << " "<< ( y2 + 7 * y1) / 8 << " " << ( y2 + 7 * y1) / 8 << " " << ( y2 + 7 * y1) / 8<<"\n";
+	f << ((5 * x2) + x1) / 6 << " "<< ((5 * x2) + x1) / 6 << " "<< ((5 * x2) + x1) / 6 << " " << ( y2 + 7 * y1) / 8 << " " << ( y2 + 7 * y1) / 8 << " " << ( y2 + 7 * y1) / 8<<"\n";
+	f << (x2 + 5 * x1) / 6 << " "<< (x2 + 5 * x1) / 6 << " "<< (x2 + 5 * x1) / 6 << " " << ( 7 * y2 - y1) / 8<< " " << ( 7 * y2 - y1) / 8<< " " << ( 7 * y2 - y1) / 8 <<"\n";
+	f << (x2 + x1) / 2 << " "<< (x2 + x1) / 2 << " "<< (x2 + x1) / 2 << " " << ( 7 * y2 - y1) / 8<< " " << ( 7 * y2 - y1) / 8 << " " << ( 7 * y2 - y1) / 8  <<"\n";
+	f << ((5 * x2) + x1) / 6 << " "<< ((5 * x2) + x1) / 6 << " "<< ((5 * x2) + x1) / 6 << " " << ( 7 * y2 - y1) / 8 << " " << ( 7 * y2 - y1) / 8<< " " << ( 7 * y2 - y1) / 8<<"\n";
+
+	f << (x2 + 3 * x1) / 4 << " "<< (x2 + 3 * x1) / 4 << " "<< (x2 + 3 * x1) / 4 << " "<<(y2 + 2 * y1) / 3<<" "<<(y2 + 2 * y1) / 3<<" "<<(y2 + 2 * y1) / 3<<" "<<"\n";
+	f << (3 * x2 + x1) / 4 << " "<< (3 * x2 + x1) / 4 << " "<< (3 * x2 + x1) / 4 << " "<<(y2 + 2 * y1) / 3<<" "<<(y2 + 2 * y1) / 3<<" "<<(y2 + 2 * y1) / 3<<" "<<"\n";
+	f << (x2 + 3 * x1) / 4 << " "<< (x2 + 3 * x1) / 4 << " "<< (x2 + 3 * x1) / 4 << " "<<(2 * y2 + y1) / 3<<" "<< " "<<(2 * y2 + y1) / 3<<" "<< " "<<(2 * y2 + y1) / 3<<"\n";
+	f << (3 * x2 + x1) / 4 << " "<< (3 * x2 + x1) / 4 << " "<< (3 * x2 + x1) / 4 << " "<<(2 * y2 + y1) / 3<<" "<< " "<<(2 * y2 + y1) / 3<<" "<< " "<<(2 * y2 + y1) / 3<<"\n";
+	
+	f << (((x2 + x1) / 2) - 30) << " "<< (((x2 + x1) / 2) - 30) << " "<< (((x2 + x1) / 2) - 30) << " "<< ((y1 + y2) / 2)<< " "<< ((y1 + y2) / 2)<< " "<< ((y1 + y2) / 2)<< "\n";
+	f << (((x2 + x1) / 2) + 30) << " "<< (((x2 + x1) / 2) + 30) << " "<< (((x2 + x1) / 2) + 30) << " "<< ((y1 + y2) / 2)<< " "<< ((y1 + y2) / 2)<< " "<< ((y1 + y2) / 2)<< "\n";
+
 	f.close();
 
 
@@ -252,6 +355,36 @@ void Calibration::savePointsForAxes(){
 	g << (((x2 + x1) / 2) - 30) << " "<< ((y1 + y2) / 2)<< "\n";
 	g << (((x2 + x1) / 2) + 30) << " "<< ((y1 + y2) / 2)<< "\n";
 
+	g << (x2 + 5 * x1) / 6 << " "<< ( y2 + 7 * y1) / 8  <<"\n";
+	g << (x2 + x1) / 2 << " "  << ( y2 + 7 * y1) / 8<<"\n";
+	g << ((5 * x2) + x1) / 6 << " "<<( y2 + 7 * y1) / 8<<"\n";
+	g << (x2 + 5 * x1) / 6 << " " << ( 7 * y2 - y1) / 8 <<"\n";
+	g << (x2 + x1) / 2 << " " << ( 7 * y2 - y1) / 8  <<"\n";
+	g << ((5 * x2) + x1) / 6 << " " << ( 7 * y2 - y1) / 8<<"\n";
+
+	g << (x2 + 3 * x1) / 4 << " "<<(y2 + 2 * y1) / 3<<" "<<"\n";
+	g << (3 * x2 + x1) / 4 << " "<<" "<<(y2 + 2 * y1) / 3<<" "<<"\n";
+	g << (x2 + 3 * x1) / 4 << " "<<(2 * y2 + y1) / 3<<"\n";
+	g << (3 * x2 + x1) / 4 << " "<<(2 * y2 + y1) / 3<<"\n";
+	
+	g << (((x2 + x1) / 2) - 30) << " "<< ((y1 + y2) / 2)<< "\n";
+	g << (((x2 + x1) / 2) + 30) << " "<< ((y1 + y2) / 2)<< "\n";
+
+	g << (x2 + 5 * x1) / 6 << " "<< ( y2 + 7 * y1) / 8  <<"\n";
+	g << (x2 + x1) / 2 << " "  << ( y2 + 7 * y1) / 8<<"\n";
+	g << ((5 * x2) + x1) / 6 << " "<<( y2 + 7 * y1) / 8<<"\n";
+	g << (x2 + 5 * x1) / 6 << " " << ( 7 * y2 - y1) / 8 <<"\n";
+	g << (x2 + x1) / 2 << " " << ( 7 * y2 - y1) / 8  <<"\n";
+	g << ((5 * x2) + x1) / 6 << " " << ( 7 * y2 - y1) / 8<<"\n";
+
+	g << (x2 + 3 * x1) / 4 << " "<<(y2 + 2 * y1) / 3<<" "<<"\n";
+	g << (3 * x2 + x1) / 4 << " "<<" "<<(y2 + 2 * y1) / 3<<" "<<"\n";
+	g << (x2 + 3 * x1) / 4 << " "<<(2 * y2 + y1) / 3<<"\n";
+	g << (3 * x2 + x1) / 4 << " "<<(2 * y2 + y1) / 3<<"\n";
+	
+	g << (((x2 + x1) / 2) - 30) << " "<< ((y1 + y2) / 2)<< "\n";
+	g << (((x2 + x1) / 2) + 30) << " "<< ((y1 + y2) / 2);
+
 	g.close();
 
 }
@@ -260,7 +393,11 @@ void Calibration::detectCircle(){
 	
 	Mat image = imread("calibration\\calibration1.png", 0);
 	Mat dst;
+
+	INuiCoordinateMapper *mapper;
 	
+	//this->aquisition.m_pNuiSensor->get_CoordinateMapper(&mapper);
+
 	cvNamedWindow("circle", CV_WINDOW_NORMAL );
 	//setMouseCallback("circle", CallBackFunc, NULL);
 	for (int y = 0; y < 480; y++)
@@ -284,26 +421,24 @@ void Calibration::detectCircle(){
 		waitKey(0);
 	}*/
 
-	
-
 }
 
 void Calibration::getCoef(){
 
-	CvMat *coordonateProiector = cvCreateMat(24, 1, CV_64FC1);
-	CvMat *coordonateXProiector = cvCreateMat(12, 1, CV_64FC1);
-	CvMat *coordonateYProiector = cvCreateMat(12, 1, CV_64FC1);
-	CvMat *coordonateXKinect = cvCreateMat(12, 1, CV_64FC1);
-	CvMat *coordonateYKinect = cvCreateMat(12, 1, CV_64FC1);
-	CvMat *coordonateZKinect = cvCreateMat(12, 1, CV_64FC1);
-	CvMat *matrice1 = cvCreateMat(12, 11, CV_64FC1);
-	CvMat *matrice2 = cvCreateMat(12, 11, CV_64FC1);
-	CvMat *matrice = cvCreateMat(24, 11, CV_64FC1);
+	CvMat *coordonateProiector = cvCreateMat(72, 1, CV_64FC1);
+	CvMat *coordonateXProiector = cvCreateMat(36, 1, CV_64FC1);
+	CvMat *coordonateYProiector = cvCreateMat(36, 1, CV_64FC1);
+	CvMat *coordonateXKinect = cvCreateMat(36, 1, CV_64FC1);
+	CvMat *coordonateYKinect = cvCreateMat(36, 1, CV_64FC1);
+	CvMat *coordonateZKinect = cvCreateMat(36, 1, CV_64FC1);
+	CvMat *matrice1 = cvCreateMat(36, 11, CV_64FC1);
+	CvMat *matrice2 = cvCreateMat(36, 11, CV_64FC1);
+	CvMat *matrice = cvCreateMat(72, 11, CV_64FC1);
 	
 	int x, y, z;
 
 	ifstream proiectorFile("coordonateProiector.txt");
-	for(int i = 0; i < 12; i++){
+	for(int i = 0; i < 36; i++){
 		proiectorFile>>x>>y;
 		//cout<<x<<" "<<y<<endl;
 		cvmSet(coordonateXProiector, i, 0, x);
@@ -313,13 +448,10 @@ void Calibration::getCoef(){
 
 		cvmSet(coordonateProiector, 2*i, 0, x);
 		cvmSet(coordonateProiector, 2*i + 1, 0, y);
-		
 	}
-
-
 	
 	ifstream kinectFile("coordonateDetectate.txt");
-	for(int i = 0; i < 12; i++){
+	for(int i = 0; i < 36; i++){
 		kinectFile>>x>>y>>z;
 
 		//cout<<x<<"  "<<y<<"  "<<z<<"  "<<endl;
@@ -332,15 +464,15 @@ void Calibration::getCoef(){
 	kinectFile.close();
 
 	int index = 0;
-	for(int i = 0; i < 24; i++){
+	for(int i = 0; i < 72; i++) {
 
 		if(i % 2 == 0) {
 			cout<<cvmGet(coordonateXProiector, i/2, 0)<<"  "<<cvmGet(coordonateYProiector, i/2, 0);
-			cout<<" "<<cvmGet(coordonateXKinect, i/2, 0)<<" "<<cvmGet(coordonateYKinect, i/2, 0)<<" "<<cvmGet(coordonateZKinect, i/2, 0)<<endl;
-			
+			cout<<" "<<cvmGet(coordonateXKinect, i/2, 0)<<" "<<cvmGet(coordonateYKinect, i/2, 0)<<" "<<cvmGet(coordonateZKinect, i/2, 0)<<endl;			
+
 			cvmSet(matrice, i, 0, cvmGet(coordonateXKinect, i/2, 0)); //xk
 			cvmSet(matrice, i, 1, cvmGet(coordonateYKinect, i/2, 0)); //yk
-			cvmSet(matrice, i, 2, cvmGet(coordonateZKinect, i/2, 0)); //zk
+			cvmSet(matrice, i, 2, cvmGet(coordonateZKinect, i/2, 0) ); //zk
 			cvmSet(matrice, i, 3, 1);						
 			cvmSet(matrice, i, 4, 0);						
 			cvmSet(matrice, i, 5, 0);						
@@ -348,7 +480,7 @@ void Calibration::getCoef(){
 			cvmSet(matrice, i, 7, 0);						
 			cvmSet(matrice, i, 8, (-1) * cvmGet(coordonateXKinect, i/2, 0) * cvmGet(coordonateXProiector, i/2, 0));
 			cvmSet(matrice, i, 9, (-1) * cvmGet(coordonateYKinect, i/2, 0) * cvmGet(coordonateXProiector, i/2, 0));
-			cvmSet(matrice, i, 10, (-1) * cvmGet(coordonateZKinect, i/2, 0) * cvmGet(coordonateXProiector, i/2, 0));
+			cvmSet(matrice, i, 10, (-1) * (cvmGet(coordonateZKinect, i/2, 0)) * cvmGet(coordonateXProiector, i/2, 0));
 		} else {
             cout<<cvmGet(coordonateXProiector, i/2, 0)<<"  "<<cvmGet(coordonateYProiector, i/2, 0);
 			cout<<" "<<cvmGet(coordonateXKinect, i/2, 0)<<" "<<cvmGet(coordonateYKinect, i/2, 0)<<" "<<cvmGet(coordonateZKinect, i/2, 0)<<endl;			cvmSet(matrice, i, 0, 0);
@@ -363,26 +495,28 @@ void Calibration::getCoef(){
 			cvmSet(matrice, i, 7, 1);
 			cvmSet(matrice, i, 8, (-1) * cvmGet(coordonateXKinect, i/2, 0) * cvmGet(coordonateYProiector, i/2, 0));
 			cvmSet(matrice, i, 9, (-1) * cvmGet(coordonateYKinect, i/2, 0) * cvmGet(coordonateYProiector, i/2, 0));
-			cvmSet(matrice, i, 10, (-1) * cvmGet(coordonateZKinect, i/2, 0) * cvmGet(coordonateYProiector, i/2, 0));
+			cvmSet(matrice, i, 10, (-1) * (cvmGet(coordonateZKinect, i/2, 0) ) * cvmGet(coordonateYProiector, i/2, 0));
 		}
 	}
 
 	cout<<"-------------------------------------------------------------------------\n";
-	for(int i = 0; i < 24; i++){
+	for(int i = 0; i < 72; i++){
 		for(int j = 0; j < 11; j++){
 			cout<<cvmGet(matrice, i, j)<<" ";
 		}
 		cout<<endl;
 	}
 	
-	for(int i = 0; i < 24; i++){
-		cout<<cvmGet(coordonateProiector, i, 0)<<endl;
+	cout<<"Coordonate proiector-------------------------------------------------------------------------\n";
+
+	for(int i = 0; i < 72; i+=2){
+		cout<<cvmGet(coordonateProiector, i, 0)<<"  "<<cvmGet(coordonateProiector, i + 1, 0)<<endl;
 	}
 
 	cvSolve(matrice, coordonateProiector, solutieQ, CV_SVD);
 	cout<<endl<<"Solutia:\n";
 
-	for(int i = 0; i <11; i++)
+	for(int i = 0; i < 11; i++)
 		cout<<cvmGet(solutieQ, i, 0)<<"   ";
 }
 
@@ -391,27 +525,28 @@ Point2d * Calibration::transformPoint(Point3d kinect) {
 
 	proiector->x = (int)((kinect.x * cvmGet(solutieQ, 0, 0) 
 					+ kinect.y * cvmGet(solutieQ, 1, 0) 
-					+ kinect.z * cvmGet(solutieQ, 2, 0) 
+					+ (kinect.z ) * cvmGet(solutieQ, 2, 0) 
 					+ cvmGet(solutieQ, 3, 0)) 
 					/(kinect.x * cvmGet(solutieQ, 8, 0)
 					+ kinect.y * cvmGet(solutieQ, 9, 0)
-					+ kinect.z * cvmGet(solutieQ, 10, 0)
+					+ (kinect.z ) * cvmGet(solutieQ, 10, 0)
 					+ 1));
 
 	proiector->y = (int)((kinect.x * cvmGet(solutieQ, 4, 0) 
 					+ kinect.y * cvmGet(solutieQ, 5, 0) 
-					+ kinect.z * cvmGet(solutieQ, 6, 0) 
+					+ (kinect.z ) * cvmGet(solutieQ, 6, 0) 
 					+ cvmGet(solutieQ, 7, 0)) 
 					/(kinect.x * cvmGet(solutieQ, 8, 0)
 					+ kinect.y * cvmGet(solutieQ, 9, 0)
-					+ kinect.z * cvmGet(solutieQ, 10, 0)
+					+ (kinect.z ) * cvmGet(solutieQ, 10, 0)
 					+ 1));
 
 	return proiector;
 }
 
 void Calibration::doTransformationOfImage(){
-	Mat imgKinect = imread("calibration\\calibration1.png");
+	Mat imgKinect = imread("calibration\\calibration12.png", CV_LOAD_IMAGE_UNCHANGED | CV_LOAD_IMAGE_ANYDEPTH);
+
 	Mat imgProjector = Mat(Size(640, 480), CV_16UC1);
 	Size size = imgKinect.size();
 	int width = size.width;
@@ -422,17 +557,43 @@ void Calibration::doTransformationOfImage(){
 		for(int x = 0; x < width; x++)
 		{
 			int z = imgKinect.at<ushort>(Point(x, y));
-			//cout<<z<<" ";
+			if(z!=0){
+				imgKinect.at<ushort>(Point(x, y)) = z + 0.5*z + 2000;
+			}
 			Point3d kinect = Point3d(x, y, z);
 			Point2d * projector = this->transformPoint(kinect);
 			
-			//cout<<" xk= "<<x<<" xp= "<<projector->x<<" yk= "<<y<<" yp= "<<projector->y<<endl;
-			imgProjector.at<ushort>(Point(projector->x, projector->y)) = z+4000;
+			if(projector->y < 0 || projector->y > 480 || projector->x < 0 || projector->x > 640){
+			cout<<" xp= "<<projector->x<<" "<<" xk= "<<x;
+			cout<<" yp= "<<projector->y<<" "<<" yk= "<<y;
+			cout<<endl;
+			} else 
+			 imgProjector.at<ushort>(Point(projector->x, projector->y)) = z+4000;
+				
+			
 		}
-		//cout<<endl;
 	}
 
-
 	imshow("tets",imgProjector);
+	imshow("tstt", imgKinect);
+	waitKey(0);
+}
+
+void Calibration::drawGrid(Mat image){
+	Mat mat_img(image);
+	int stepSize = 165;
+	ofstream g("coordonateProiector.txt");
+
+	int width = mat_img.size().width;
+	int height = mat_img.size().height;
+
+	for (int i = 0; i<height; i += stepSize){
+
+		cv::line(mat_img, Point(0, i), Point(width, i), cv::Scalar(255, 255, 255));
+	}
+	for (int i = 0; i<width; i += stepSize){
+		cv::line(mat_img, Point(i, 0), Point(i, height), cv::Scalar(255, 255, 255));
+	}
+	imshow("Grid", mat_img);
 	waitKey(0);
 }
