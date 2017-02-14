@@ -52,5 +52,6 @@ public:
 	void drawGrid(Mat image);
 
 	void detectCircleForImage(Mat eightBitsImage, Mat sixteenBitsImage);
+	void sendImageAtClick(Mat* depthImage);
 };
 

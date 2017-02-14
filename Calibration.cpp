@@ -19,8 +19,8 @@ int Calibration::x1 = 0;
 int Calibration::y1 = 0;
 int Calibration::x2 = 640;
 int Calibration::y2 = 480;
-int Calibration::THRESH_MAX = 2150;
-int Calibration::THRESH_MIN = 2050;
+int Calibration::THRESH_MAX = 1150;
+int Calibration::THRESH_MIN = 1050;
 
 CvMat *Calibration::solutieQ = cvCreateMat(11, 1, CV_64FC1);
 
@@ -56,8 +56,8 @@ int Calibration::showAxes(USHORT * imageArray) {
 	Mat depthImage = Mat(Size(640, 480), CV_16UC1, imageArray);
 	Mat save = depthImage.clone();
 
-	cvNamedWindow("axis", CV_WINDOW_NORMAL );
-	cvSetWindowProperty("axis", CV_WND_PROP_FULLSCREEN, CV_WINDOW_FULLSCREEN);
+	//cvNamedWindow("axis", CV_WINDOW_NORMAL );
+	//cvSetWindowProperty("axis", CV_WND_PROP_FULLSCREEN, CV_WINDOW_FULLSCREEN);
 	//this->createAxis(config[nrFrame][0], config[nrFrame][1], config[nrFrame][2], config[nrFrame][3], config[nrFrame][4],config[nrFrame][5], &save);
 	this->createAxis(vecIntersectionPoints[nrFrame].first, vecIntersectionPoints[nrFrame].second, &save);
 
@@ -69,14 +69,16 @@ int Calibration::showAxes(USHORT * imageArray) {
 	imshow("axis", save);
 	int pressedKey =  waitKey(10);
 	if(pressedKey == 49){
-		Mat depthImageForCircle = Mat(Size(640, 480), CV_8UC1, imageArray);
+
+		Mat depthImageForCircle = Mat(Size(640, 480), CV_8UC1);
+		depthImage.convertTo(depthImageForCircle, CV_8UC1, 1.0/255.0);
 		vector<int> compression_params;
 		compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
-		compression_params.push_back(9);
+		compression_params.push_back(3);
 		const string imageName = "calibration\\calibration" + to_string(nrFrame) + ".png";
 		
 		cout<<imageName<<endl;
-		
+		//imshow("8bitsTest", depthImageForCircle);
 		imwrite(imageName, depthImageForCircle, compression_params);
 		detectCircleForImage(depthImageForCircle, depthImage);
 		nrFrame++;
@@ -105,7 +107,7 @@ void Calibration::getFrames(){
 void Calibration::detectCircleForImage(Mat eightBitsImage, Mat sixteenBitsImage) {
 
 		Mat src_gray;
-		Mat thresh = sixteenBitsImage.clone();
+		Mat thresh = eightBitsImage.clone();
 
 	    int nrPixels = 0;
 		int nr_x = 0;
@@ -114,39 +116,93 @@ void Calibration::detectCircleForImage(Mat eightBitsImage, Mat sixteenBitsImage)
 		Mat labels,stats,centroids;
 		int noComp;
 
-		namedWindow( "lfld", WINDOW_AUTOSIZE );
-		imshow ("lfld", thresh);
-
-		noComp = connectedComponentsWithStats(thresh, labels, stats, centroids, 8, CV_32S); 
-
-		Mat circle;
-
-		compare(labels, 1, circle, CMP_EQ);
-
-		imshow("circle", circle);
-		waitKey(0);
-
-		/*for (int y = 0; y < 480; y++) {
+		//namedWindow( "lfld", WINDOW_AUTOSIZE );
+		//imshow ("lfld", sixteenBitsImage);
+		
+		for (int y = 0; y < 480; y++) {
 			for(int x = 0; x < 640; x++) {	
-				if(src.at<ushort>(Point(x, y)) != 0 && !(src.at<ushort>(Point(x, y)) > THRESH_MIN && src.at<ushort>(Point(x, y)) < THRESH_MAX))
+				if(sixteenBitsImage.at<ushort>(Point(x, y)) != 0 && !(sixteenBitsImage.at<ushort>(Point(x, y)) > THRESH_MIN && sixteenBitsImage.at<ushort>(Point(x, y)) < THRESH_MAX))
 				{
 					nrPixels ++;
 					nr_x += x;
 					nr_y += y;
 
-					src.at<ushort>(Point(x, y)) = 54000;
+					thresh.at<uchar>(Point(x, y)) = 0;
 				} else {
-					src.at<ushort>(Point(x, y)) = 0;					
+					thresh.at<uchar>(Point(x, y)) = 255;					
 				}
 			}
-		}*/
+		}
+		imshow("thresh", thresh);
+		//waitKey(10);
+		noComp = connectedComponentsWithStats(thresh, labels, stats, centroids, 8, CV_16U); 
+		labels.convertTo(labels, CV_16U);
+
+		vector<int> compression_params;
+		compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
+		compression_params.push_back(9);
+		const string imageName = "labels.png";
+
+
+		std::vector<Vec3b> colors(noComp);
+
+		colors[0] = Vec3b(0, 0, 0);//background
+		int val = 1;
+		for(int label = 1; label < noComp; ++label){
+			colors[label] = Vec3b( (val & 255), (val  + 10 & 255), (val + label & 255) );
+			val++;
+		}
+
+		cout<<stats<<endl;
+		cout<<stats.at<int>(0, 4)<<endl;
+
+		vector<pair<int, int>> areas;
+
+		for(int i = 0; i < noComp; i++)
+			areas.push_back(make_pair(i, stats.at<int>(i, 4)));
+
+		
+		for (std::vector<pair<int, int>>::iterator it=areas.begin(); it != areas.end(); ++it)
+			std::cout << ' ' << it->first<<" "<< it->second<<endl;
+
+		std::sort(areas.begin(), areas.end(), [](const std::pair<int,int> &left, const std::pair<int,int> &right) {
+		 return left.second < right.second;
+		});
+
+		cout << "---------------------------------------------------------\n";
+
+		for (std::vector<pair<int, int>>::iterator it = areas.begin(); it != areas.end(); ++it)
+			std::cout << ' ' << it->first << " " << it->second << endl;
+
+
+		Mat dst(thresh.size(), CV_8UC3);
+		for(int r = 0; r < dst.rows; ++r){
+			for(int c = 0; c < dst.cols; ++c){
+			   int label = labels.at<ushort>(r, c);
+			   Vec3b &pixel = dst.at<Vec3b>(r, c);
+			   pixel = colors[label];
+			}
+		}
+
+
+		//imshow("ceva", dst);
+		//imwrite(imageName, dst, compression_params);
+	
+
+		//get Circle from image
+		Mat circle;
+
+		compare(labels, areas[noComp - 4].first, circle, CMP_EQ);
+
+		imshow("circle", circle);
+		waitKey(10);
 
 		//imshow("thresh", src);
 		//waitKey(4000);
-
+		cout<<"noComponent : "<<noComp<<endl;
 		int x = nr_x/nrPixels;
 		int y = nr_y/nrPixels;
-		int z = (int)thresh.at<ushort>(Point(x, y));
+		int z = (int)sixteenBitsImage.at<ushort>(Point(x, y));
 		/*Point center(x, y);
 		src.at<ushort>(Point(x, y)) = 0;
 */
@@ -229,6 +285,22 @@ void Calibration::readConfig() {
 	file.close();
 }
 
+void Calibration::sendImageAtClick(Mat* depthImage) {
+
+		Mat depthImageForCircle = Mat(Size(640, 480), CV_8UC1);
+		depthImage->convertTo(depthImageForCircle, CV_8UC1, 1.0/255.0);
+		vector<int> compression_params;
+		compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
+		compression_params.push_back(9);
+		const string imageName = "calibration\\calibration" + to_string(nrFrame) + ".png";
+		
+		cout<<imageName<<endl;
+		imshow("8bitsTest", depthImageForCircle);
+		//imwrite(imageName, depthImageForCircle, compression_params);
+		detectCircleForImage(depthImageForCircle, *depthImage);
+		nrFrame++;
+}
+
 void Calibration::CallBackFunc(int event, int x, int y, int flags, void* userdata){
 	if ( flags == (EVENT_FLAG_LBUTTON) )
      {
@@ -242,6 +314,9 @@ void Calibration::CallBackFunc(int event, int x, int y, int flags, void* userdat
 		  }
           cout << "Left mouse button is clicked while pressing CTRL key - position (" << x << ", " << y << ")" << endl;
      }
+	/*if ( flags == (EVENT_FLAG_LBUTTON) )
+		sendImageAtClick(*((Mat*)userdata));
+*/
 }
 
 void Calibration::getMouseCoordinates(){
