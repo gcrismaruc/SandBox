@@ -1,7 +1,7 @@
 #pragma once
 
 #include <sstream>
-
+#include <random>
 #include "DepthMap.h"
 
 using namespace std;
@@ -25,11 +25,18 @@ public:
 	static int y1;
 	static int y2;
 	static CvMat *solutieQ;
+	static Mat homographyMatrix;
+
+	static int lowThreshold;
+
+	static Mat thresh;
 
 	int config[36][6];
 
 	vector<pair<unsigned int, unsigned int>> vecIntersectionPoints;
-	vector<Point3i> vecOfDetectedCoordinates;
+	vector<Point3f> vecOfDetectedCoordinates;
+
+	 
 
 	Calibration(Aquisition *aquisition);
 	Calibration();
@@ -51,7 +58,12 @@ public:
 	void doTransformationOfImage();
 	void drawGrid(Mat image);
 
-	void detectCircleForImage(Mat eightBitsImage, Mat sixteenBitsImage);
+	int detectCircleForImage(Mat eightBitsImage, Mat sixteenBitsImage);
 	void sendImageAtClick(Mat* depthImage);
+
+	static void CannyThreshold(int, void *);
+
+	void scalingImage();
+	void loadCalibration();
 };
 

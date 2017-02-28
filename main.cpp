@@ -257,19 +257,25 @@ int main(){
 	//while(true) {
 	//	dm->ColorTheImage(dm->aquisition.Update());
 	//}
+
 	Calibration *c = new Calibration(aq);
-	
+
 	//c->getMouseCoordinates();
-	c->savePointsForAxes();
+
+	/*c->savePointsForAxes();
 	c->readConfig();
-	c->getFrames();
+	c->getFrames();*/
 	
+
+
 	//c->showCircles();
 	
 	c->getCoef();
 	
+	c->loadCalibration();
 	c->doTransformationOfImage();
 
-	//c->detectCircle();
+	
+	
 	return 0;
 }
