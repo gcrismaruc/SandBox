@@ -15,18 +15,25 @@
 
 int Calibration::nrFrame = 0;
 int Calibration::nrClick = 0;
-int Calibration::x1 = 144;
-int Calibration::y1 = 2;
-int Calibration::x2 = 584;
-int Calibration::y2 = 247;
-int Calibration::THRESH_MAX = 1111;
-int Calibration::THRESH_MIN = 1000;
+int Calibration::x1 = 0;
+int Calibration::y1 = 0;
+int Calibration::x2 = 640;
+int Calibration::y2 = 480;
+const int Calibration::NR_POINTS = 70;
+//int Calibration::THRESH_MAX = 1111;
+//int Calibration::THRESH_MIN = 1000;
+int Calibration::THRESH_MAX = 805;
+int Calibration::THRESH_MIN = 725;
+double Calibration::zFar = 0.0;
+double Calibration::zNear = 0.0;
 
 Mat Calibration::thresh = Mat(Size(640, 480), CV_8UC1);
 int Calibration::lowThreshold = 100;
 
 CvMat *Calibration::solutieQ = cvCreateMat(12, 1, CV_64FC1);
 Mat Calibration::homographyMatrix =  Mat(3, 4, CV_32FC1);
+Mat Calibration::projection = Mat(4, 4, CV_32FC1);
+
 
 double Calibration::FX = 5.4735210296154094e+002;
 double Calibration::CX = 3.1075353754346150e+002;
@@ -50,56 +57,35 @@ void Calibration::createAxis(int x1, int y1, int x2, int y2, int x3, int y3, Mat
 	line(*image, Point(x2, y2), Point(x3, y3), Scalar(32000, 32000, 32000), 2, 8);
 }
 
+//adaug punctele pentru proiectie
 void Calibration::createAxis(int x, int y, Mat *image) {
 	line(*image, Point(x - 10, y), Point(x + 10, y), Scalar((unsigned short)-1), 1, 8);
 	line(*image, Point(x, y - 10), Point(x, y + 10), Scalar((unsigned short)-1), 1, 8);
 }
 
+//afisez imaginea cu axele si salvez imaginea de la Kinect cand apas tasta 1
+//imaginea este salvata dar totodata detectez cercul si centrul lui
 int Calibration::showAxes(USHORT * imageArray) {
 
 	Mat depthImage = Mat(Size(640, 480), CV_16UC1, imageArray);
-	Mat save = depthImage.clone();
+	Mat projectedImage = Mat(Size(640, 480), CV_16UC1, Scalar(0, 0, 0));
+	this->createAxis(vecIntersectionPoints[nrFrame].first, vecIntersectionPoints[nrFrame].second, &projectedImage);
 
-	cvNamedWindow("axis", CV_WINDOW_NORMAL );
-	cvSetWindowProperty("axis", CV_WND_PROP_FULLSCREEN, CV_WINDOW_FULLSCREEN);
-	//this->createAxis(config[nrFrame][0], config[nrFrame][1], config[nrFrame][2], config[nrFrame][3], config[nrFrame][4],config[nrFrame][5], &save);
-	this->createAxis(vecIntersectionPoints[nrFrame].first, vecIntersectionPoints[nrFrame].second, &save);
-
-	/*//this->setROI(save, x1, x2, y1, y2);
-	//this->setROI(depthImage, x1, x2, y1, y2);
-	for (int y = y1; y < y2; y++)
-		for(int x = x1; x < x2; x++)
-			save.at<ushort>(y,x) +=4000;*/
 
 	int newWidth = abs(x2 - x1);
 	int newHeight = abs(y2 - y1);
-
-	/*Rect region_of_interest = Rect(x1, y1, newWidth, newHeight);
-	Mat roi = Mat(Size(640, 480), CV_16UC1);
-	roi	= save(region_of_interest);
-	*/
-	//Mat newRoi = Mat(640, 480, CV_16UC1);
-
-	/*flip(roi, roi, 1);
-	resize(roi, roi, depthImage.size());
-	resize(save, save, depthImage.size());
-	*/
-	/*cout << roi.type() << " " << roi.channels()<<endl;
-
-	for (int y = 0; y < roi.size().height; y++){
-		for (int x = 0; x < 640; x++)
-			roi.at<uchar>(Point(x, y)) += 5000;
-	}
-*/
 	
-	imshow("axis", save);
+	cvNamedWindow("axis", CV_WINDOW_NORMAL );
+	cvSetWindowProperty("axis", CV_WND_PROP_FULLSCREEN, CV_WINDOW_FULLSCREEN);
+
+	imshow("axis", projectedImage);
 	int pressedKey =  waitKey(10);
 
 	int checkDetectedCircle = -1;
 
 	if(pressedKey == 49){
 		Mat depthImageForCircle = Mat(Size(640, 480), CV_8UC1);
-		save.convertTo(depthImageForCircle, CV_8UC1, 1.0/255.0);
+		depthImage.clone().convertTo(depthImageForCircle, CV_8UC1, 1.0 / 255.0);
 
 		vector<int> compression_params;
 		compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
@@ -119,12 +105,14 @@ int Calibration::showAxes(USHORT * imageArray) {
 	return (checkDetectedCircle == -1) ? checkDetectedCircle : pressedKey;
 }
 
+//achizitionez frame-uri de la Kinect si le transmit la functia de mai sus
 void Calibration::getFrames(){
 	
+	ofstream xyp("coordonateXYPuncteDetectate.txt");
 	int a = 0;
 	int count = 0;
 
-	while(count != 36) {
+	while(count != 70) {
 		cout<<"aici\n";
 		while(a != 49){
 			a = this->showAxes(this->aquisition.Update());
@@ -142,7 +130,12 @@ void Calibration::getFrames(){
 		fcout << it->x << " " << it->y << " " << it->z << endl;
 	}
 
+	for (auto point : vecOfDetectedPixelCoordinates){
+		xyp << point.x << "  " << point.y << endl;
+	}
+
 	fcout.close();
+	xyp.close();
 	cvDestroyWindow("axis");
 
 }
@@ -156,28 +149,9 @@ void Calibration::CannyThreshold(int, void *) {
 	thresh.copyTo(dst, thresh);
 	imshow("Edge Map", dst);
 	waitKey(10);
-
-	/*vector<cv::Vec3f> circles;
-	HoughCircles(thresh, circles, HOUGH_GRADIENT, 1, thresh.rows / 4, lowThreshold, 100, 0, 10);
-	
-	Mat dst;
-	thresh.copyTo(dst, thresh);
-	
-
-	if (circles.size() == 0) std::exit(-1);
-	for (size_t current_circle = 0; current_circle < circles.size(); ++current_circle) {
-		cv::Point center(std::round(circles[current_circle][0]), std::round(circles[current_circle][1]));
-		int radius = std::round(circles[current_circle][2]);
-
-		cv::circle(dst, center, radius, cv::Scalar(0, 255, 0), 5);
-
-	}*/
-
-	//imshow("Edge Map", dst);
-	//waitKey(1);
-
 }
 
+//detectez cercul si salvez coordonatele in fisier
 int Calibration::detectCircleForImage(Mat eightBitsImage, Mat sixteenBitsImage) {
 
 	int retValue = 0;
@@ -201,75 +175,12 @@ int Calibration::detectCircleForImage(Mat eightBitsImage, Mat sixteenBitsImage) 
 				}
 			}
 		}
-		//imshow("thresh", thresh);
-		//waitKey(10);
-
-
-		/*noComp = connectedComponentsWithStats(thresh, labels, stats, centroids, 8, CV_16U);
-		labels.convertTo(labels, CV_16U);
-
-		vector<int> compression_params;
-		compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
-		compression_params.push_back(9);
-		const string imageName = "labels.png";
-
-
-		std::vector<Vec3b> colors(noComp);
-
-		colors[0] = Vec3b(0, 0, 0);//background
-		int val = 1;
-		for (int label = 1; label < noComp; ++label){
-			colors[label] = Vec3b((val & 255), (val + 10 & 255), (val + label & 255));
-			val++;
-		}
-
-		cout << stats << endl;
-		cout << stats.at<int>(0, 4) << endl;
-
-		vector<pair<int, int>> areas;
-
-		for (int i = 0; i < noComp; i++)
-			areas.push_back(make_pair(i, stats.at<int>(i, 4)));
-
-		std::sort(areas.begin(), areas.end(), [](const std::pair<int, int> &left, const std::pair<int, int> &right) {
-			return left.second < right.second;
-		});
-
-		Mat dst(thresh.size(), CV_8UC3);
-		for (int r = 0; r < dst.rows; ++r){
-			for (int c = 0; c < dst.cols; ++c){
-				int label = labels.at<ushort>(r, c);
-				Vec3b &pixel = dst.at<Vec3b>(r, c);
-				pixel = colors[label];
-			}
-		}
-
-
-		imshow("ceva", dst);
-		imwrite(imageName, dst, compression_params);
-	
-
-		//get Circle from image
-		Mat circle;
-
-		compare(labels, areas[noComp - 4].first, circle, CMP_EQ);
-
-		imshow("circle", circle);
-		waitKey(10);*/
-
-
+		
 		Mat lower_red_hue_range;
 		Mat upper_red_hue_range;
 		
 		medianBlur(thresh, thresh, 3);
-		GaussianBlur(thresh, thresh, Size(9, 9), 2, 2);
-
-		/*//imshow("Thresh with blur", thresh);
-
-		//char* window_name = "Edge Map";
-
-		//namedWindow("Edge Map", WINDOW_AUTOSIZE);
-		//createTrackbar("Min Threshold:", window_name, &lowThreshold, 100, CannyThreshold);*/
+		GaussianBlur(thresh, thresh, Size(9, 9), 3, 3);
 
 		vector<cv::Vec3f> circles;
 
@@ -312,9 +223,8 @@ int Calibration::detectCircleForImage(Mat eightBitsImage, Mat sixteenBitsImage) 
 
 		//save coordinate in milimeters
 		if (retValue == 0){
-			//vecOfDetectedCoordinates.push_back(Point3f((worldCoordinates.x * 1000), (worldCoordinates.y * 1000), (worldCoordinates.z * 1000)));
 			vecOfDetectedCoordinates.push_back(Point3f((worldCoordinates.x ), (worldCoordinates.y ), (worldCoordinates.z )));
-
+			vecOfDetectedPixelCoordinates.push_back(Point2f(x, y));
 		}
 		return retValue;
 }
@@ -373,15 +283,8 @@ void Calibration::showCircles() {
 
 }
 
+//citesc coordonatele proiectate
 void Calibration::readConfig() {
-
-	/*ifstream file("coordinates.txt");
-
-	for(int i = 0; i < 36; i++) {
-		for(int j = 0; j < 6; j++) {
-			file>>this->config[i][j];
-		}
-	}*/
 
 	ifstream file("coordonateProiector.txt");
 
@@ -475,6 +378,7 @@ void Calibration::setROI(Mat &img, int x1, int x2, int y1, int y2){
 	}
 }
 
+//salvez coordonatele pentru proiector in fisier, dupa ce la generez random
 void Calibration::savePointsForAxes(){
 	
 	ofstream g("coordonateProiector.txt");
@@ -483,10 +387,11 @@ void Calibration::savePointsForAxes(){
 
 	random_device rd;     // only used once to initialise (seed) engine
 	mt19937 rng(rd());    // random-number engine used (Mersenne-Twister in this case)
-	uniform_int_distribution<int> x_rnd(x1, x2);
-	uniform_int_distribution<int> y_rnd(y1, y2);
+	uniform_int_distribution<int> x_rnd(30, x2-70);
+	uniform_int_distribution<int> y_rnd(30, y2-70);
 
-	for (int i = 0; i < 36; i++){
+
+	for (int i = 0; i < 70; i++){
 		int x = x_rnd(rng);
 		int y = y_rnd(rng);
 
@@ -536,21 +441,220 @@ void Calibration::detectCircle(){
 
 }
 
+//rezolvare sistem
 void Calibration::getCoef(){
 
-	CvMat *coordonateProiector = cvCreateMat(72, 1, CV_64FC1);
-	CvMat *coordonateXProiector = cvCreateMat(36, 1, CV_64FC1);
-	CvMat *coordonateYProiector = cvCreateMat(36, 1, CV_64FC1);
-	CvMat *coordonateXKinect = cvCreateMat(36, 1, CV_64FC1);
-	CvMat *coordonateYKinect = cvCreateMat(36, 1, CV_64FC1);
-	CvMat *coordonateZKinect = cvCreateMat(36, 1, CV_64FC1);
+	ofstream logFile("FileLog.txt");
+
+	Mat A = Mat(2 * NR_POINTS, 12, CV_64FC1);
+	float x, y, z;
+
+	std::vector<Point2d> puncteProiector;
+	std::vector<Point3d> puncteKinect;
+
+	//citesc coordonatele proiectate({x,y})
+	ifstream proiectorFile("coordonateProiector.txt");
+	for (int i = 0; i < NR_POINTS; i++){
+		proiectorFile >> x >> y;
+		puncteProiector.push_back(Point2d(x, y));
+	}
+
+	//citesc coordonatele detectate(centrul cercurilor {x, y, z})
+	ifstream kinectFile("coordonateDetectate.txt");
+	for (int i = 0; i < NR_POINTS; i++){
+		kinectFile >> x >> y >> z;
+		puncteKinect.push_back(Point3d(x, y, z));
+	}
+
+	proiectorFile.close();
+	kinectFile.close();
+
+
+	//creare matrice A pentru sistem
+	int index = 0;
+	for (int i = 0; i < 2 * NR_POINTS; i += 2) {
+
+		A.at<double>(i, 0) = puncteKinect.at(index).x;
+		A.at<double>(i, 1) = puncteKinect.at(index).y;
+		A.at<double>(i, 2) = puncteKinect.at(index).z;
+		A.at<double>(i, 3) = 1;
+		A.at<double>(i, 4) = 0;
+		A.at<double>(i, 5) = 0;
+		A.at<double>(i, 6) = 0;
+		A.at<double>(i, 7) = 0;
+		A.at<double>(i, 8) = -puncteProiector.at(index).x * puncteKinect.at(index).x;
+		A.at<double>(i, 9) = -puncteProiector.at(index).x * puncteKinect.at(index).y;
+		A.at<double>(i, 10) = -puncteProiector.at(index).x * puncteKinect.at(index).z;
+		A.at<double>(i, 11) = -puncteProiector.at(index).x;
+
+		A.at<double>(i + 1, 0) = 0;
+		A.at<double>(i + 1, 1) = 0;
+		A.at<double>(i + 1, 2) = 0;
+		A.at<double>(i + 1, 3) = 0;
+		A.at<double>(i + 1, 4) = puncteKinect.at(index).x;
+		A.at<double>(i + 1, 5) = puncteKinect.at(index).y;
+		A.at<double>(i + 1, 6) = puncteKinect.at(index).z;
+		A.at<double>(i + 1, 7) = 1;
+		A.at<double>(i + 1, 8) = -puncteProiector.at(index).y * puncteKinect.at(index).x;
+		A.at<double>(i + 1, 9) = -puncteProiector.at(index).y * puncteKinect.at(index).y;
+		A.at<double>(i + 1, 10) = -puncteProiector.at(index).y * puncteKinect.at(index).z;
+		A.at<double>(i + 1, 11) = -puncteProiector.at(index).y;
+
+		index++;
+	}
+
+	logFile << "\n--------------------------Matricea A----------------------------------\n";
+	for (int i = 0; i < 2 * NR_POINTS; i++){
+		for (int j = 0; j < 12; j++){
+			logFile << A.at<double>(i, j) << " ";
+		}
+		logFile << endl;
+	}
+
+	logFile << "\n------------------------Coordonate proiector----------------------------------\n";
+	for (auto pointProiector : puncteProiector){
+		logFile << pointProiector.x << " " << pointProiector.y << " \n";
+	}
+
+	logFile << "\n------------------------Coordonate Kinect----------------------------------\n";
+	for (auto pointKinect : puncteKinect){
+		logFile << pointKinect.x << " " << pointKinect.y << "  " << pointKinect.z << " \n";
+	}
+
+	Mat solutieValori;
+	Mat solutieValoriVector;
+	Mat ATranspusa; 
+		
+	transpose(A, ATranspusa);
+	Mat eigenInput = ATranspusa * A;
+
+	Mat eigenInputFloat;
+	eigenInput.convertTo(eigenInputFloat, CV_32FC1);
+
+	eigen(eigenInputFloat, solutieValori, solutieValoriVector);
+
+	logFile << "\n---------------------Valori singulare---------------------------------\n";
+	for (int i = 0; i < 12; i++){
+		logFile << solutieValori.at<float>(i, 0) << "   ";
+	}
+
+	logFile << "\n----------------------Vectori valori singulare-----------------------------\n";
+	for (int j = 0; j < 12; j++){
+		for (int i = 0; i < 12; i++){
+			logFile << solutieValoriVector.at<float>(i, j) << "   ";
+		}
+		logFile << endl << endl << endl;
+	}
+
+	logFile << "\n----------------------Homography----------------------------------\n";
+	//create homography matrix
+	//matricea de transformare(rotatie+translatie)
+
+	//homographyMatrix = cv::findHomography(img_points, proj_points, CV_RANSAC);
+	vector<float> vec;
+	for (int i = 0; i < 12; i++){
+		vec.push_back(solutieValoriVector.at<float>(i, 10));
+	}
+
+	//double norm2 = norm(vec, 2);
+
+	for (int i = 0; i < 3; i++){
+		for (int j = 0; j < 4; j++){
+			homographyMatrix.at<float>(i, j) = solutieValoriVector.at<float>(i * 4 + j, 10) / solutieValoriVector.at<float>(11, 10);
+				/*if (i == 2 && j == 3){
+					homographyMatrix.at<float>(i, j) = 1;
+				}*/
+				logFile << homographyMatrix.at<float>(i, j) << " ";
+		}
+		logFile << endl;
+	}
 	
-	CvMat *matrice = cvCreateMat(72, 12, CV_64FC1);
+	//create projection matrix
+	for (int i = 0; i < 2; i++){
+		for (int j = 0; j < 4; j++){
+			projection.at<float>(i, j) = homographyMatrix.at<float>(i, j);
+		}
+	}
+
+	for (int i = 0; i < 4; i++){
+		projection.at<float>(2, i) = 0;
+	}
+
+	for (int i = 0; i < 4; i++){
+		projection.at<float>(3, i) = homographyMatrix.at<float>(2,i);
+	}
+
+	projection.at<float>(2, 2) = 1;
+
+	
+	for (int i = 0; i < 4; i++){
+		projection.at<float>(i, 3) *= (0.95); // pe Y
+		projection.at<float>(i, 1) *= (-0.05); //pe X
+
+		//projection.at<float>(i, 0) *= 3;
+	}
+
+	logFile << "\n-----------------Projection matrix-------------------------\n";
+	for (int i = 0; i < 4; i++){
+		for (int j = 0; j < 4; j++){
+			logFile << projection.at<float>(i, j) << "  ";
+		}
+		logFile << endl;
+	}
+
+	logFile.close();
+}
+
+//transform punct (X,Y,Z) in metri -> (x,y) in pixeli
+Point2f * Calibration::transformPoint(Point3f kinect) {
+	Point2f *proiector = new Point2f();
+
+	/*double denominator = kinect.x * cvmGet(solutieQ, 8, 0)
+						+ kinect.y * cvmGet(solutieQ, 9, 0)
+						+ (kinect.z) * cvmGet(solutieQ, 10, 0)
+						+ cvmGet(solutieQ, 11, 0);
+
+	double xNumerator = kinect.x * cvmGet(solutieQ, 0, 0)
+						+ kinect.y * cvmGet(solutieQ, 1, 0)
+						+ (kinect.z) * cvmGet(solutieQ, 2, 0)
+						+ cvmGet(solutieQ, 3, 0);
+
+	double yNumerator = kinect.x * cvmGet(solutieQ, 4, 0)
+						+ kinect.y * cvmGet(solutieQ, 5, 0)
+						+ (kinect.z) * cvmGet(solutieQ, 6, 0)
+						+ cvmGet(solutieQ, 7, 0);*/
+	Mat XYZ = Mat(4, 1, CV_32FC1);
+	XYZ.at<float>(0, 0) = kinect.x;
+	XYZ.at<float>(1, 0) = kinect.y;
+	XYZ.at<float>(2, 0) = kinect.z;
+	XYZ.at<float>(3, 0) = 1;
+	Mat UV = projection * XYZ;
+
+	int xPrim = round(UV.at<float>(0, 0) / UV.at<float>(3, 0));
+	int yPrim = round(UV.at<float>(1, 0) / UV.at<float>(3, 0));
+	
+	proiector->x = xPrim;
+	proiector->y = yPrim;
+	return proiector;
+}
+
+void Calibration::solveSVD(){
+
+
+	CvMat *coordonateProiector = cvCreateMat(140, 1, CV_64FC1);
+	CvMat *coordonateXProiector = cvCreateMat(70, 1, CV_64FC1);
+	CvMat *coordonateYProiector = cvCreateMat(70, 1, CV_64FC1);
+	CvMat *coordonateXKinect = cvCreateMat(70, 1, CV_64FC1);
+	CvMat *coordonateYKinect = cvCreateMat(70, 1, CV_64FC1);
+	CvMat *coordonateZKinect = cvCreateMat(70, 1, CV_64FC1);
+
+	CvMat *matrice = cvCreateMat(140, 12, CV_64FC1);
 
 	float x, y, z;
 
+	//citesc coordonatele proiectate({x,y})
 	ifstream proiectorFile("coordonateProiector.txt");
-	for (int i = 0; i < 36; i++){
+	for (int i = 0; i < 70; i++){
 		proiectorFile >> x >> y;
 
 		cvmSet(coordonateXProiector, i, 0, x);
@@ -559,8 +663,9 @@ void Calibration::getCoef(){
 		cvmSet(coordonateProiector, 2 * i + 1, 0, y);
 	}
 
+	//citesc coordonatele detectate(centrul cercurilor {x, y, z})
 	ifstream kinectFile("coordonateDetectate.txt");
-	for (int i = 0; i < 36; i++){
+	for (int i = 0; i < 70; i++){
 		kinectFile >> x >> y >> z;
 
 		cvmSet(coordonateXKinect, i, 0, x);
@@ -571,8 +676,10 @@ void Calibration::getCoef(){
 	proiectorFile.close();
 	kinectFile.close();
 
+
+	//creare matrice A pentru sistem
 	int index = 0;
-	for (int i = 0; i < 72; i++) {
+	for (int i = 0; i < 140; i++) {
 
 		if (i % 2 == 0) {
 			cout << cvmGet(coordonateXProiector, i / 2, 0) << "  " << cvmGet(coordonateYProiector, i / 2, 0);
@@ -587,7 +694,7 @@ void Calibration::getCoef(){
 			cvmSet(matrice, i, 6, 0);
 			cvmSet(matrice, i, 7, 0);
 			cvmSet(matrice, i, 8, (-1) * cvmGet(coordonateXKinect, i / 2, 0) * cvmGet(coordonateXProiector, i / 2, 0));
-			cvmSet(matrice, i, 9, (-1) * cvmGet(coordonateYKinect, i / 2, 0) * cvmGet(coordonateXProiector, i / 2, 0) );
+			cvmSet(matrice, i, 9, (-1) * cvmGet(coordonateYKinect, i / 2, 0) * cvmGet(coordonateXProiector, i / 2, 0));
 			cvmSet(matrice, i, 10, (-1) * (cvmGet(coordonateZKinect, i / 2, 0)) * cvmGet(coordonateXProiector, i / 2, 0));
 			cvmSet(matrice, i, 11, (-1) * cvmGet(coordonateXProiector, i / 2, 0));
 
@@ -613,7 +720,7 @@ void Calibration::getCoef(){
 	}
 
 	cout << "-------------------------------------------------------------------------\n";
-	for (int i = 0; i < 72; i++){
+	for (int i = 0; i < 140; i++){
 		for (int j = 0; j < 12; j++){
 			cout << cvmGet(matrice, i, j) << " ";
 		}
@@ -626,44 +733,13 @@ void Calibration::getCoef(){
 		cout << cvmGet(coordonateProiector, i, 0) << "  " << cvmGet(coordonateProiector, i + 1, 0) << endl;
 	}
 
-	//cvSolve(matrice, coordonateProiector, solutieQ, CV_SVD);
+	cvSolve(matrice, coordonateProiector, solutieQ, CV_SVD);
 
-	Mat solutieValori;
-	Mat solutieValoriVector;
-	Mat matrice2 = cvarrToMat(matrice);
-	Mat transpusa; 
-		
-	transpose(matrice2, transpusa);
-	Mat eigenInput = transpusa * matrice2;
-
-	Mat eigenInputFloat;
-
-	eigenInput.convertTo(eigenInputFloat, CV_32FC1);
-
-	eigen(eigenInputFloat, solutieValori, solutieValoriVector);
-	//cout << endl << "Solutia:\n";
-
-	cout << "Valori singulare---------------------------------\n";
-	for (int i = 0; i < 12; i++){
-		cout << solutieValori.at<float>( i, 0) << "   ";
-	}
-
-	cout << endl;
-	cout << "Vectori valori singulare cel mai mic-----------------------------\n";
 	
-	for (int j = 0; j < 12; j++){
-		for (int i = 0; i < 12; i++){
-			cout << solutieValoriVector.at<float>(i, j) << "   ";
-			cvmSet(solutieQ, i, 0, solutieValoriVector.at<float>(i, 10));
-		}
-		cout << endl<<endl<<endl;
-	}
-
-
 	ofstream f("calibration.txt");
 
 	cout << "solutieQ------------------------------\n";
-	 for (int i = 0; i < 12; i++){
+	for (int i = 0; i < 12; i++){
 		cout << cvmGet(solutieQ, i, 0) << "   ";
 		f << cvmGet(solutieQ, i, 0) << "   ";
 	}
@@ -671,137 +747,341 @@ void Calibration::getCoef(){
 
 	cout << "Homography----------------------------------\n";
 	//create homography matrix
+	//matricea de transformare(rotatie+translatie)
 	for (int i = 0; i < 3; i++){
 		for (int j = 0; j < 4; j++){
-			homographyMatrix.at<float>(i, j) = cvmGet(solutieQ, i*4+j, 0);
+			homographyMatrix.at<float>(i, j) = cvmGet(solutieQ, i * 4 + j, 0);
 			cout << homographyMatrix.at<float>(i, j) << " ";
 		}
 		cout << endl;
 	}
 
+	//create projection matrix
+	for (int i = 0; i < 2; i++){
+		for (int j = 0; j < 4; j++){
+			projection.at<float>(i, j) = homographyMatrix.at<float>(i, j);
+		}
+	}
 
-	/*delete coordonateProiector;
-	delete coordonateXKinect;
-	delete coordonateYKinect;
-	delete coordonateZKinect;
-	delete coordonateXProiector;
-	delete coordonateYProiector;
-	delete matrice;*/
-	
+	for (int i = 0; i < 4; i++){
+		projection.at<float>(2, i) = 0;
+	}
+
+	for (int i = 0; i < 4; i++){
+		projection.at<float>(3, i) = homographyMatrix.at<float>(2, i);
+	}
+
+	projection.at<float>(2, 2) = 1;
+
+
+	for (int i = 0; i < 4; i++){
+		//projection.at<float>(i, 3) *= (0.95); // pe Y
+		//projection.at<float>(i, 1) *= (-0.05); //pe X
+
+		//projection.at<float>(i, 0) *= 3;
+	}
+
+	cout << "\n\tProjection matrix\n\n";
+	for (int i = 0; i < 4; i++){
+		for (int j = 0; j < 4; j++){
+			cout << projection.at<float>(i, j) << "  ";
+		}
+		cout << endl;
+	}
+
 }
 
-Point2d * Calibration::transformPoint(Point3d kinect) {
-	Point2d *proiector = new Point2d();
-
-	double denominator = kinect.x * cvmGet(solutieQ, 8, 0)
-						+ kinect.y * cvmGet(solutieQ, 9, 0)
-						+ (kinect.z) * cvmGet(solutieQ, 10, 0)
-						+ cvmGet(solutieQ, 11, 0);
-
-	double xNumerator = kinect.x * cvmGet(solutieQ, 0, 0)
-						+ kinect.y * cvmGet(solutieQ, 1, 0)
-						+ (kinect.z) * cvmGet(solutieQ, 2, 0)
-						+ cvmGet(solutieQ, 3, 0);
-
-	double yNumerator = kinect.x * cvmGet(solutieQ, 4, 0)
-						+ kinect.y * cvmGet(solutieQ, 5, 0)
-						+ (kinect.z) * cvmGet(solutieQ, 6, 0)
-						+ cvmGet(solutieQ, 7, 0);
-	Mat XYZ = Mat(4, 1, CV_32FC1);
-	XYZ.at<float>(0, 0) = kinect.x;
-	XYZ.at<float>(1, 0) = kinect.y;
-	XYZ.at<float>(2, 0) = kinect.z;
-	XYZ.at<float>(3, 0) = 1;
-	Mat UV = homographyMatrix * XYZ;
-
-	proiector->x = round(xNumerator / denominator);
-
-	proiector->y = round(yNumerator / denominator);
-
-	int xPrim = round(UV.at<float>(0, 0) / UV.at<float>(2, 0));
-	int yPrim = round(UV.at<float>(1, 0) / UV.at<float>(2, 0));
-
-	return proiector;
-}
-
+//realizarea transformarii tuturor pixelilor din imagine
 void Calibration::doTransformationOfImage(){
-	Mat imgKinect1 = imread("calibration\\calibration0.png", CV_LOAD_IMAGE_UNCHANGED | CV_LOAD_IMAGE_ANYDEPTH);
+	Mat imgKinect = imread("calibration\\calibration10.png", CV_LOAD_IMAGE_UNCHANGED | CV_LOAD_IMAGE_ANYDEPTH);
+	//while (true){
+		//Mat imgKinect = Mat(Size(640, 480), CV_16UC1, this->aquisition.Update());
+		//flip(imgKinect, imgKinect, 1);
 
-	//Mat imgKinect1 = Mat(Size(640, 480), CV_16UC1, this->aquisition.Update());
+		/*Rect region_of_interest = Rect(150, 80, 420, 340);
+		Mat imgKinect1 = imgKinect(region_of_interest).clone();
 
-	Rect region_of_interest = Rect(x1, y1, abs(x2 - x1), abs(y2 - y1));
-	Mat imgKinect = imgKinect1(region_of_interest);
+		resize(imgKinect1, imgKinect, Size(640, 480), 0, 0, INTER_CUBIC);
+		*/
+
+		Mat imgProjector = Mat(Size(640, 480), CV_16UC1, Scalar(0, 0, 0));
+		Size size = imgKinect.size();
+		int width = size.width;
+		int height = size.height;
 
 
-	resize(imgKinect, imgKinect, imgKinect1.size());
-	cout<<"Type of imgKinect :"<<imgKinect.type()<<endl;
-
-	Mat imgProjector = Mat(Size(640, 480), CV_16UC1, Scalar(0, 0, 0));
-	Size size = imgKinect.size();
-	int width = size.width;
-	int height = size.height;
-
-	//INuiCoordinateMapper *mapper;
-	//this->aquisition.m_pNuiSensor->NuiGetCoordinateMapper(&mapper);
-
-	ofstream f("imagine.txt");
-	for(int y = 0; y < height; y++)
-	{
-		for(int x = 0; x < width; x++)
+		ofstream f("imagine.txt");
+		for (int y = 0; y < 480; y++)
 		{
-			int z = imgKinect.at<ushort>(Point(x, y));
+			for (int x = 0; x < 640; x++)
+			{
+				ushort z = imgKinect.at<ushort>(Point(x, y));
 
-			Vector4 worldCoordinates = NuiTransformDepthImageToSkeleton((long)x, (long)y, z << 3, NUI_IMAGE_RESOLUTION_640x480);
+				Vector4 worldCoordinates = NuiTransformDepthImageToSkeleton((long)x, (long)y, z<<3, NUI_IMAGE_RESOLUTION_640x480);
 
-			Point3d kinect = Point3d(worldCoordinates.x , worldCoordinates.y , (double)z/1000);
+				Point3f kinect = Point3f(worldCoordinates.x, worldCoordinates.y, worldCoordinates.z);
 
-			Point2d * projector = this->transformPoint(kinect);
+				Point2f * projector = this->transformPoint(kinect);
 
-			FLOAT fSkeletonZ = static_cast<FLOAT>(z) / 1000.0f;
-			FLOAT fSkeletonX = (x - width / 2.0f) * (320.0f / width) * NUI_CAMERA_DEPTH_IMAGE_TO_SKELETON_MULTIPLIER_320x240 * fSkeletonZ;
 
-			FLOAT fSkeletonY = -(y - height / 2.0f) * (240.0f / height) * NUI_CAMERA_DEPTH_IMAGE_TO_SKELETON_MULTIPLIER_320x240 * fSkeletonZ;
-			
+				if (projector->x >= 0 && projector->x < 640 && projector->y < 480 ){
+					if (abs(y - projector->y) < 480 && abs(y - projector->y) >= 0){
+						imgProjector.at<ushort>(Point(projector->x, abs(y - projector->y))) = z + z * 300;
+						//f << "x pixel " << x << " y pixel:" << y << " world->x: " << worldCoordinates.x << " world->y: " << worldCoordinates.y << " world->z: " << worldCoordinates.z << " projector x = " << projector->x << " prjector y = " << projector->y << endl;
 
-			//int newX = projector->x / ((320.0f / width) * NUI_CAMERA_DEPTH_IMAGE_TO_SKELETON_MULTIPLIER_320x240 * fSkeletonZ) + 
-
-			//if(projector->x > 0 && projector->x < 640 && projector->y > 0 && projector->y < 480){
-//				imgProjector.at<ushort>(Point(projector->x , projector->y )) = z + 4000;
-			//}
-			//else {
-				f << "x pixel " << x << "y pixel:" << y << " world->x: " << worldCoordinates.x << " world->y: " << worldCoordinates.y << " world->z: " << worldCoordinates.z<<"projector x = " << projector->x << "prjector y = " << projector->y << endl;
-
-			//}
-			
-			//f << "x pixel " << x << "y pixel:" << y << " world->x: " << worldCoordinates.x << " world->y: " << worldCoordinates.y << " world->z: " << worldCoordinates.z<<"projector x = " << projector->x << "prjector y = " << projector->y << endl;
-
-			//}
-
+					}
+					else{
+						//f << "x pixel " << x << " y pixel:" << y << " world->x: " << worldCoordinates.x << " world->y: " << worldCoordinates.y << " world->z: " << worldCoordinates.z << " projector x = " << projector->x << " prjector y = " << projector->y << endl;
+					}
+				}else{
+					//	f << "x pixel " << x << " y pixel:" << y << " world->x: " << worldCoordinates.x << " world->y: " << worldCoordinates.y << " world->z: " << worldCoordinates.z << " projector x = " << projector->x << " prjector y = " << projector->y << endl;
+				}
+			}
 		}
+
+		f.close();
+
+		for (int y = 0; y < 480; y++){
+			for (int x = 0; x < 640; x++){
+				imgKinect.at<ushort>(Point(x, y)) = imgKinect.at<ushort>(Point(x, y)) + imgKinect.at<ushort>(Point(x, y))*300;
+			}
+		}
+		
+
+		//cvNamedWindow("proiector", CV_WINDOW_NORMAL );
+		//cvSetWindowProperty("proiector", CV_WND_PROP_FULLSCREEN, CV_WINDOW_FULLSCREEN);
+
+		//Mat im_color;
+		//applyColorMap(imgProjector, im_color, COLORMAP_JET);
+		
+		//flip(imgProjector, imgProjector, 1);
+		imshow("proiector", imgProjector);
+		imshow("kinect", imgKinect);
+		waitKey(0);
+
+	
+		/*vector<int> compression_params;
+		compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
+		compression_params.push_back(100);
+		const string imageName1 = "projector.png";
+		const string imageName2 = "kinect.png";
+		imwrite(imageName1, imgProjector, compression_params);
+		imwrite(imageName2, imgKinect, compression_params);*/
+
+		
+	//}
+}
+
+void Calibration::solvePnP(){
+
+	Mat A = Mat(2*NR_POINTS, 12, CV_64FC1);
+	float x, y, z;
+
+	std::vector<Point2d> puncteProiector;
+	std::vector<Point3d> puncteKinect;
+
+	//citesc coordonatele proiectate({x,y})
+	ifstream proiectorFile("coordonateProiector.txt");
+	for (int i = 0; i < NR_POINTS; i++){
+		proiectorFile >> x >> y;
+		puncteProiector.push_back(Point2d(x, y));
 	}
 
-	f.close();
-
-	/*int z = 1120;
-	int x = 0;
-	int y = 0;
-	Vector4 worldCoordinates = NuiTransformDepthImageToSkeleton((long)x, (long)y, z << 3, NUI_IMAGE_RESOLUTION_640x480);
-
-	Point3d kinect = Point3d(worldCoordinates.x * 1000, worldCoordinates.y * 1000, worldCoordinates.z * 1000);
-*/
-
-	//cout << "estimat: " << kinect.x << " " << kinect.y << " " << kinect.z << endl;
-
-
-	for (int y = 0; y < 480; y++){
-		for (int x = 0; x < 640; x++){
-			imgProjector.at<ushort>(Point(x, y)) += 5000;
-			imgKinect.at<ushort>(Point(x, y)) += 5000;
-		}
+	//citesc coordonatele detectate(centrul cercurilor {x, y, z})
+	ifstream kinectFile("coordonateDetectate.txt");
+	for (int i = 0; i < NR_POINTS; i++){
+		kinectFile >> x >> y >> z;
+		puncteKinect.push_back(Point3d(x, y, z));
 	}
-	imshow("proiector",imgProjector);
-	imshow("kinect", imgKinect);
-	waitKey(0);
+
+	proiectorFile.close();
+	kinectFile.close();
+
+
+	//creare matrice A pentru sistem
+	int index = 0;
+	for (int i = 0; i < 2 * NR_POINTS; i += 2) {
+
+		A.at<double>(i , 0) = puncteKinect.at(index).x;
+		A.at<double>(i , 1) = puncteKinect.at(index).y;
+		A.at<double>(i , 2) = puncteKinect.at(index).z;
+		A.at<double>(i , 3) = 1;
+		A.at<double>(i , 4) = 0;
+		A.at<double>(i , 5) = 0;
+		A.at<double>(i , 6) = 0;
+		A.at<double>(i , 7) = 0;
+		A.at<double>(i , 8) = -puncteProiector.at(index).x * puncteKinect.at(index).x;
+		A.at<double>(i , 9) = -puncteProiector.at(index).x * puncteKinect.at(index).y;
+		A.at<double>(i , 10) = -puncteProiector.at(index).x * puncteKinect.at(index).z;
+		A.at<double>(i , 11) = -puncteProiector.at(index).x;
+
+		A.at<double>(i + 1, 0) = 0;
+		A.at<double>(i + 1, 1) = 0;
+		A.at<double>(i + 1, 2) = 0;
+		A.at<double>(i + 1, 3) = 0;
+		A.at<double>(i + 1, 4) = puncteKinect.at(index).x;
+		A.at<double>(i + 1, 5) = puncteKinect.at(index).y;
+		A.at<double>(i + 1, 6) = puncteKinect.at(index).z;
+		A.at<double>(i + 1, 7) = 1;
+		A.at<double>(i + 1, 8) = -puncteProiector.at(index).y * puncteKinect.at(index).x;
+		A.at<double>(i + 1, 9) = -puncteProiector.at(index).y * puncteKinect.at(index).y;
+		A.at<double>(i + 1, 10) = -puncteProiector.at(index).y * puncteKinect.at(index).z;
+		A.at<double>(i + 1, 11) = -puncteProiector.at(index).y;
+		
+		index++;
+	}
+
+	Mat solutieValori;
+	Mat solutieValoriVector;
+	Mat AT;
+
+	transpose(A, AT);
+	Mat eigenInput = AT * A;
+
+	Mat eigenInputFloat;
+
+	eigenInput.convertTo(eigenInputFloat, CV_32FC1);
+
+	cv::eigen(eigenInputFloat, solutieValori, solutieValoriVector);
+
+
+	for (int j = 0; j < 12; j++){
+		for (int i = 0; i < 12; i++){
+			//cout << solutieValoriVector.at<float>(i, j) << "   ";
+			cvmSet(solutieQ, i, 0, solutieValoriVector.at<float>(i, 11));
+		}
+		//cout << endl << endl << endl;
+	}
+
+	ofstream fis("homography.txt");
+	cout << "Homography----------------------------------\n";
+	//create homography matrix
+	//matricea de transformare(rotatie+translatie)
+	for (int i = 0; i < 3; i++){
+		for (int j = 0; j < 4; j++){
+			homographyMatrix.at<float>(i, j) = cvmGet(solutieQ, i * 4 + j, 0);
+			fis << homographyMatrix.at<float>(i, j) << " ";
+		}
+		fis << endl;
+	}
+
+	fis.close();
+	/*float q11, q12, q13, q14, q21, q22, q23, q24, q31, q32, q33, q34;
+
+	q13 = homographyMatrix.at<float>(2, 0);
+	q23 = homographyMatrix.at<float>(2, 1);
+	q33 = homographyMatrix.at<float>(2, 2);
+
+	double scale = sqrt(q13*q13 + q23*q23 + q33*q33);//??SumSquare???
+
+	homographyMatrix /= scale;
+	
+	q14 = homographyMatrix.at<float>(0, 3);
+	q24 = homographyMatrix.at<float>(1, 3);
+	q34 = homographyMatrix.at<float>(2, 3);
+
+	double tz = q34;
+	double tzeps = 1;
+	if (tz > 0) tzeps = -1;
+	tz = tzeps * q34;
+
+	//vectori coloana
+	Mat q1;
+	Mat q2;
+	Mat q3;
+
+
+	q1.push_back(homographyMatrix.at<float>(0, 0));
+	q1.push_back(homographyMatrix.at<float>(0, 1));
+	q1.push_back(homographyMatrix.at<float>(0, 2));
+
+	q2.push_back(homographyMatrix.at<float>(1, 0));
+	q2.push_back(homographyMatrix.at<float>(1, 1));
+	q2.push_back(homographyMatrix.at<float>(1, 2));
+
+	q3.push_back(homographyMatrix.at<float>(2, 0));
+	q3.push_back(homographyMatrix.at<float>(2, 1));
+	q3.push_back(homographyMatrix.at<float>(2, 2));
+
+	Mat q1t;
+	Mat q2t;
+	Mat q3t;
+	transpose(q1, q1t);
+	transpose(q2, q2t);
+	transpose(q3, q3t);
+
+	Mat r1, r2, r3;
+
+	Mat m1 = q1t * q3;
+	Mat m2 = q2t * q3;
+
+	float u0 = m1.at<float>(0, 0);
+	float v0 = m2.at<float>(0, 0);
+
+	double a = norm(q1) * norm(q3);
+	double b = norm(q2) * norm(q3);
+
+
+	r3 = tzeps * q3;
+	r1 = tzeps * (q1 - (u0 * q3)) / a;
+	r2 = tzeps * (q2 - (v0 * q3)) / b;
+
+	double tx = tzeps * (q14 - u0 * tz) / a;
+	double ty = tzeps * (q24 - v0 * tz) / b;
+
+	Mat t;
+	t.push_back(tx);
+	t.push_back(ty);
+	t.push_back(tz);
+
+	
+	//Mat proj = Mat(4, 4, CV_32F);
+
+	/*projection.at<float>(0, 0) = r1.at<float>(0, 0);
+	projection.at<float>(1, 1) = r1.at<float>(0, 1);
+	projection.at<float>(2, 2) = r1.at<float>(0, 2);
+	projection.at<float>(3, 3) = 0.0;
+
+	projection.at<float>(0, 1) = r2.at<float>(0, 0);
+	projection.at<float>(1, 1) = r2.at<float>(0, 1);
+	projection.at<float>(2, 1) = r2.at<float>(0, 2);
+	projection.at<float>(3, 1) = 0.0;
+
+	projection.at<float>(0, 2) = r3.at<float>(0, 0);
+	projection.at<float>(1, 2) = r3.at<float>(0, 1);
+	projection.at<float>(2, 2) = r3.at<float>(0, 2);
+	projection.at<float>(3, 2) = 0.0;
+
+	projection.at<float>(0, 0) = r1.at<float>(0, 0);
+	projection.at<float>(1, 1) = r1.at<float>(1, 0);
+	projection.at<float>(2, 2) = r1.at<float>(2, 0);
+	projection.at<float>(3, 3) = 0.0;
+
+	projection.at<float>(0, 1) = r2.at<float>(0, 0);
+	projection.at<float>(1, 1) = r2.at<float>(1, 0);
+	projection.at<float>(2, 1) = r2.at<float>(2, 0);
+	projection.at<float>(3, 1) = 0.0;
+
+	projection.at<float>(0, 2) = r3.at<float>(0, 0);
+	projection.at<float>(1, 2) = r3.at<float>(1, 0);
+	projection.at<float>(2, 2) = r3.at<float>(2, 0);
+	projection.at<float>(3, 2) = 0.0;
+
+	projection.at<float>(0, 3) = tx;
+	projection.at<float>(1, 3) = ty;
+	projection.at<float>(2, 3) = tz;
+	projection.at<float>(3, 3) = 1.0;
+
+	*/
+	cout << endl << endl << "Projection\n\n";
+	for (int i = 0; i < 4; i++)
+	{
+		for (int j = 0; j < 4; j++){
+			cout << projection.at<float>(i, j) << "   ";
+		}
+
+		cout << endl;
+	}
 }
 
 void Calibration::loadCalibration(){

@@ -271,9 +271,13 @@ int main(){
 	//c->showCircles();
 	
 	c->getCoef();
+	//c->solvePnP();
+
+	//c->solveSVD();
 	
 	c->loadCalibration();
 	c->doTransformationOfImage();
+
 
 	
 	

@@ -1,0 +1,84 @@
+void DepthMap::createPalette(color palette[256], int &paletteSize)
+{
+
+	color colors[13];
+	colors[0].blue = 48;
+	colors[0].green = 1;
+	colors[0].red = 1;
+
+	colors[1].blue = 245;
+	colors[1].green = 24;
+	colors[1].red = 29;
+
+	colors[2].blue = 254;
+	colors[2].green = 255;
+	colors[2].red = 0;
+
+	colors[3].blue = 56;
+	colors[3].green = 100;
+	colors[3].red = 0;
+
+	colors[4].blue = 0;
+	colors[4].green = 127;
+	colors[4].red =	63;
+
+	colors[5].blue = 72;
+	colors[5].green = 153;
+	colors[5].red = 3;
+
+	colors[6].blue = 86;
+	colors[6].green = 178;
+	colors[6].red = 54;
+
+	colors[7].blue = 119;
+	colors[7].green = 204;
+	colors[7].red = 116;
+
+	colors[8].blue = 161;
+	colors[8].green = 229;
+	colors[8].red = 173;
+
+	colors[9].blue = 209;
+	colors[9].green = 255;
+	colors[9].red = 229;
+
+	colors[10].blue = 107;
+	colors[10].green = 192;
+	colors[10].red = 186;
+
+	colors[11].blue = 35;
+	colors[11].green = 90;
+	colors[11].red = 184;
+
+	colors[12].blue = 0;
+	colors[12].green = 42;
+	colors[12].red = 105;
+
+	for(int i = 1; i < 13; i++)
+	{
+		color A = colors[i-1];
+		color B = colors[i];
+
+		int colorWidth = 256 / 13;
+
+		for(int j = 0; j < colorWidth; j++)
+		{
+			float p = j / (float)colorWidth;
+
+			this->palette[this->paletteSize].red = A.red * (1-p) + B.red * p;
+			this->palette[this->paletteSize].green = A.green * (1-p) + B.green * p;
+			this->palette[this->paletteSize].blue = A.blue * (1-p) + B.blue * p;
+
+			this->paletteSize++;
+		}
+	}
+
+	for(int i = this->paletteSize; i < 256; i++)
+	{
+		this->palette[i].red = this->palette[this->paletteSize - 1].red;
+		this->palette[i].green = this->palette[this->paletteSize - 1].green;
+		this->palette[i].blue = this->palette[this->paletteSize - 1].blue;
+
+		this->paletteSize++;
+	}
+}

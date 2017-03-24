@@ -16,6 +16,7 @@ public:
 	static double CY; 
 	static int THRESH_MIN;
 	static int THRESH_MAX;
+	static const int NR_POINTS;
 
 	Aquisition aquisition;
 	static int nrFrame;
@@ -26,6 +27,11 @@ public:
 	static int y2;
 	static CvMat *solutieQ;
 	static Mat homographyMatrix;
+	static Mat projection;
+
+	static double zFar;
+	static double zNear;
+
 
 	static int lowThreshold;
 
@@ -35,6 +41,7 @@ public:
 
 	vector<pair<unsigned int, unsigned int>> vecIntersectionPoints;
 	vector<Point3f> vecOfDetectedCoordinates;
+	vector<Point2f> vecOfDetectedPixelCoordinates;
 
 	 
 
@@ -54,7 +61,7 @@ public:
 	void savePointsForAxes();
 	void detectCircle();
 	void getCoef();
-	Point2d * transformPoint(Point3d kinect);
+	Point2f * transformPoint(Point3f kinect);
 	void doTransformationOfImage();
 	void drawGrid(Mat image);
 
@@ -62,6 +69,9 @@ public:
 	void sendImageAtClick(Mat* depthImage);
 
 	static void CannyThreshold(int, void *);
+
+	void solvePnP();
+	void solveSVD();
 
 	void scalingImage();
 	void loadCalibration();
