@@ -42,7 +42,6 @@ public:
 	vector<pair<unsigned int, unsigned int>> vecIntersectionPoints;
 	vector<Point3f> vecOfDetectedCoordinates;
 	vector<Point2f> vecOfDetectedPixelCoordinates;
-
 	 
 
 	Calibration(Aquisition *aquisition);
@@ -64,6 +63,9 @@ public:
 	Point2f * transformPoint(Point3f kinect);
 	void doTransformationOfImage();
 	void drawGrid(Mat image);
+
+	void decomposeHomography();
+
 
 	int detectCircleForImage(Mat eightBitsImage, Mat sixteenBitsImage);
 	void sendImageAtClick(Mat* depthImage);

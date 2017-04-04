@@ -4,13 +4,14 @@
 #include <strsafe.h>
 #include <iostream>
 #include <string>
+#include <iomanip>
 #include <fstream>
 #include <math.h>
 #include <NuiSensor.h>
 #include <NuiImageCamera.h>
 #include <NuiApi.h>
 #include <NuiSkeleton.h>
-
+#include "opencv2\core\types.hpp"
 
 
 int Calibration::nrFrame = 0;
@@ -19,11 +20,11 @@ int Calibration::x1 = 0;
 int Calibration::y1 = 0;
 int Calibration::x2 = 640;
 int Calibration::y2 = 480;
-const int Calibration::NR_POINTS = 70;
-//int Calibration::THRESH_MAX = 1111;
-//int Calibration::THRESH_MIN = 1000;
-int Calibration::THRESH_MAX = 805;
-int Calibration::THRESH_MIN = 725;
+const int Calibration::NR_POINTS = 65;
+int Calibration::THRESH_MAX = 1000;
+int Calibration::THRESH_MIN = 900;
+//int Calibration::THRESH_MAX = 805;
+//int Calibration::THRESH_MIN = 725;
 double Calibration::zFar = 0.0;
 double Calibration::zNear = 0.0;
 
@@ -32,6 +33,7 @@ int Calibration::lowThreshold = 100;
 
 CvMat *Calibration::solutieQ = cvCreateMat(12, 1, CV_64FC1);
 Mat Calibration::homographyMatrix =  Mat(3, 4, CV_32FC1);
+//Mat Calibration::homographyMatrix = Mat(3, 3, CV_32FC1);
 Mat Calibration::projection = Mat(4, 4, CV_32FC1);
 
 
@@ -460,12 +462,15 @@ void Calibration::getCoef(){
 	}
 
 	//citesc coordonatele detectate(centrul cercurilor {x, y, z})
+	ifstream pp("coordonateXYPuncteDetectate.txt");
 	ifstream kinectFile("coordonateDetectate.txt");
 	for (int i = 0; i < NR_POINTS; i++){
 		kinectFile >> x >> y >> z;
-		puncteKinect.push_back(Point3d(x, y, z));
+		//pp >> x >> y;
+		puncteKinect.push_back(Point3d(x, y, -z));
 	}
 
+	pp.close();
 	proiectorFile.close();
 	kinectFile.close();
 
@@ -509,6 +514,7 @@ void Calibration::getCoef(){
 			logFile << A.at<double>(i, j) << " ";
 		}
 		logFile << endl;
+		//logFile << ";";
 	}
 
 	logFile << "\n------------------------Coordonate proiector----------------------------------\n";
@@ -539,8 +545,8 @@ void Calibration::getCoef(){
 	}
 
 	logFile << "\n----------------------Vectori valori singulare-----------------------------\n";
-	for (int j = 0; j < 12; j++){
-		for (int i = 0; i < 12; i++){
+	for (int i = 0; i < 12; i++){
+		for (int j = 0; j < 12; j++){
 			logFile << solutieValoriVector.at<float>(i, j) << "   ";
 		}
 		logFile << endl << endl << endl;
@@ -549,22 +555,15 @@ void Calibration::getCoef(){
 	logFile << "\n----------------------Homography----------------------------------\n";
 	//create homography matrix
 	//matricea de transformare(rotatie+translatie)
-
-	//homographyMatrix = cv::findHomography(img_points, proj_points, CV_RANSAC);
 	vector<float> vec;
 	for (int i = 0; i < 12; i++){
-		vec.push_back(solutieValoriVector.at<float>(i, 10));
+		vec.push_back(solutieValoriVector.at<float>(i, 11));
 	}
-
-	//double norm2 = norm(vec, 2);
 
 	for (int i = 0; i < 3; i++){
 		for (int j = 0; j < 4; j++){
-			homographyMatrix.at<float>(i, j) = solutieValoriVector.at<float>(i * 4 + j, 10) / solutieValoriVector.at<float>(11, 10);
-				/*if (i == 2 && j == 3){
-					homographyMatrix.at<float>(i, j) = 1;
-				}*/
-				logFile << homographyMatrix.at<float>(i, j) << " ";
+			homographyMatrix.at<float>(i, j) = solutieValoriVector.at<float>(11, i*4+j);
+			logFile << homographyMatrix.at<float>(i, j) << " ";
 		}
 		logFile << endl;
 	}
@@ -572,27 +571,18 @@ void Calibration::getCoef(){
 	//create projection matrix
 	for (int i = 0; i < 2; i++){
 		for (int j = 0; j < 4; j++){
-			projection.at<float>(i, j) = homographyMatrix.at<float>(i, j);
+			projection.at<float>(i, j) = homographyMatrix.at<float>(i, j) / homographyMatrix.at<float>(2,3);
 		}
 	}
-
 	for (int i = 0; i < 4; i++){
 		projection.at<float>(2, i) = 0;
 	}
-
 	for (int i = 0; i < 4; i++){
-		projection.at<float>(3, i) = homographyMatrix.at<float>(2,i);
+		projection.at<float>(3, i) = homographyMatrix.at<float>(2,i)/homographyMatrix.at<float>(2,3);
 	}
 
 	projection.at<float>(2, 2) = 1;
-
 	
-	for (int i = 0; i < 4; i++){
-		projection.at<float>(i, 3) *= (0.95); // pe Y
-		projection.at<float>(i, 1) *= (-0.05); //pe X
-
-		//projection.at<float>(i, 0) *= 3;
-	}
 
 	logFile << "\n-----------------Projection matrix-------------------------\n";
 	for (int i = 0; i < 4; i++){
@@ -602,6 +592,200 @@ void Calibration::getCoef(){
 		logFile << endl;
 	}
 
+	//calculate zRange
+	//double zRangeVector[NR_POINTS];
+	//int i = 0;
+	//for (auto pointKinect : puncteKinect){
+	//	Mat xyzOmogen = Mat(4, 1, CV_32FC1);
+	//	xyzOmogen.at<float>(0, 0) = pointKinect.x;
+	//	xyzOmogen.at<float>(1, 0) = pointKinect.y;
+	//	xyzOmogen.at<float>(2, 0) = pointKinect.z;
+	//	xyzOmogen.at<float>(3, 0) = 1.0;
+
+	//	Mat z = projection*xyzOmogen;
+	//	zRangeVector[i] = (z.at<float>(2, 0) / z.at<float>(3, 0));
+	//	cout << zRangeVector[i] << "  ";
+	//	i++;
+	//}
+	//cout << endl;
+
+	//float zMin = 9999, zMax=-9999;
+
+	//for (double z : zRangeVector){
+	//	if (z < zMin)
+	//		zMin = z;
+	//	if (z > zMax)
+	//		zMax = z;
+	//}
+
+	//cv::Range zRange = cv::Range(zMin, zMax);
+
+	//cout << "zRangeMin : " << zRange.start << "   zRangeMax : " << zRange.end << endl;
+	//cout << "zSize : " << zRange.size() << endl;
+
+	////double interval
+	//zRange = cv::Range(zRange.start - zRange.size()*0.5, zRange.end + zRange.size()*0.5);
+
+	//cout << "zRangeMin : " << zRange.start << "   zRangeMax : " << zRange.end << endl;
+	//cout << "zSize : " << zRange.size() << endl;
+
+	//Mat invViewport = Mat(4, 4, CV_32FC1);
+	//invViewport = Scalar(1.0);
+
+	//invViewport.at<float>(0, 0) = 2.0 / double(640);
+	//invViewport.at<float>(0, 3) = -1.0;
+	//invViewport.at<float>(1, 1) = 2.0 / double(480);
+	//invViewport.at<float>(1, 3) = -1.0;
+	//invViewport.at<float>(2, 2) = 2.0 / (zRange.size());
+	//invViewport.at<float>(2, 3) = -2.0*zMin / (zRange.size()) - 1.0;
+	////projection = invViewport*projection;
+
+	//logFile << "\n-----------------invViewPort matrix-------------------------\n";
+	//for (int i = 0; i < 4; i++){
+	//	for (int j = 0; j < 4; j++){
+	//		logFile << invViewport.at<float>(i, j) << "  ";
+	//	}
+	//	logFile << endl;
+	//}
+
+	//logFile << "\n-----------------Full projection matrix-------------------------\n";
+	//for (int i = 0; i < 4; i++){
+	//	for (int j = 0; j < 4; j++){
+	//		logFile << projection.at<float>(i, j) << "  ";
+	//	}
+	//	logFile << endl;
+	//}
+
+
+	// Decompose the projection matrix into:
+/*	cv::Mat K(3, 3, cv::DataType<float>::type); // intrinsic parameter matrix
+	cv::Mat R(3, 3, cv::DataType<float>::type); // rotation matrix
+	cv::Mat T(4, 1, cv::DataType<float>::type); // translation vector
+	cv::decomposeProjectionMatrix(projection, K, R, T);
+
+	logFile << "\n-----------------Intrinsic parameter matrix-------------------------\n";
+	for (int i = 0; i < 3; i++){
+		for (int j = 0; j < 3; j++){
+			logFile << K.at<float>(i, j) << "  ";
+		}
+		logFile << endl;
+	}
+
+	logFile << "\n-----------------Rotation matrix-------------------------\n";
+	for (int i = 0; i < 3; i++){
+		for (int j = 0; j < 3; j++){
+			logFile << R.at<float>(i, j) << "  ";
+		}
+		logFile << endl;
+	}
+
+	logFile << "\n-----------------Translation vector-------------------------\n";
+	for (int i = 0; i < 3; i++){
+		logFile << T.at<float>(i, 0) << " ";
+	}
+
+	for (int i = 0; i < 3; i++){
+		for (int j = 0; j < 3; j++){
+			projection.at<float>(i,j) = R.at<float>(i, j);
+		}
+	}
+
+	for (int i = 0; i < 3; i++){
+		projection.at<float>(i, 3) = T.at<float>(i, 0);
+	}
+
+	for (int i = 0; i < 3; i++){
+		projection.at<float>(3, i) = 0.0;
+	}
+
+	projection.at<float>(3, 3) = 1.0;
+
+	logFile << "\n-----------------Projection matrix-------------------------\n";
+	for (int i = 0; i < 4; i++){
+		for (int j = 0; j < 4; j++){
+			logFile << projection.at<float>(i, j) << "  ";
+		}
+		logFile << endl;
+	}
+	*/
+
+	logFile.close();
+}
+
+void Calibration::decomposeHomography(){
+	double fx, fy, cx, cy;
+
+	fx = 368.096588;
+	fy = 368.096588;
+
+	cx = 261.696594;
+	cy = 202.522202;
+	Mat R(3, 3, CV_32FC1);
+	Mat T(3, 1, CV_32FC1);
+	for (int i = 0; i < 3; i++){
+		for (int j = 0; j < 4; j++){
+			homographyMatrix.at<float>(i, j) = homographyMatrix.at<float>(i, j) / homographyMatrix.at<float>(2, 3);
+		}
+	}
+
+
+	R.at<float>(0, 0) = (homographyMatrix.at<float>(0, 0) - cx*homographyMatrix.at<float>(2, 0)) / fx;
+	R.at<float>(0, 1) = (homographyMatrix.at<float>(0, 1) - cx*homographyMatrix.at<float>(2, 1)) / fx;
+	R.at<float>(0, 2) = (homographyMatrix.at<float>(0, 2) - cx*homographyMatrix.at<float>(2, 2)) / fx;
+
+	R.at<float>(1, 0) = (homographyMatrix.at<float>(1, 0) - cy*homographyMatrix.at<float>(2, 0)) / fy;
+	R.at<float>(1, 1) = (homographyMatrix.at<float>(1, 1) - cy*homographyMatrix.at<float>(2, 1)) / fy;
+	R.at<float>(1, 2) = (homographyMatrix.at<float>(1, 2) - cy*homographyMatrix.at<float>(2, 2)) / fy;
+
+	R.at<float>(2, 0) = homographyMatrix.at<float>(2, 0);
+	R.at<float>(2, 1) = homographyMatrix.at<float>(2, 1);
+	R.at<float>(2, 1) = homographyMatrix.at<float>(2, 2);
+
+	T.at<float>(0, 0) = (homographyMatrix.at<float>(0, 3) - cx*homographyMatrix.at<float>(2, 3)) / fx;
+	T.at<float>(1, 0) = (homographyMatrix.at<float>(1, 3) - cy*homographyMatrix.at<float>(2, 3)) / fy;
+	T.at<float>(2, 0) = homographyMatrix.at<float>(2, 3);
+
+	std::ofstream logFile;
+	logFile.open("FileLog.txt", std::ofstream::out | std::ofstream::app);
+
+
+	logFile << "\n-----------------Rotation matrix-------------------------\n";
+	for (int i = 0; i < 3; i++){
+		for (int j = 0; j < 3; j++){
+			logFile << R.at<float>(i, j) << "  ";
+		}
+		logFile << endl;
+	}
+
+	logFile << "\n-----------------Translation vector-------------------------\n";
+	for (int i = 0; i < 3; i++){
+		logFile << T.at<float>(i, 0) << " ";
+	}
+
+	for (int i = 0; i < 3; i++){
+		for (int j = 0; j < 3; j++){
+			projection.at<float>(i, j) = R.at<float>(i, j);
+		}
+	}
+
+	for (int i = 0; i < 3; i++){
+		projection.at<float>(i, 3) = T.at<float>(i, 0);
+	}
+
+	for (int i = 0; i < 3; i++){
+		projection.at<float>(3, i) = 0.0;
+	}
+
+	projection.at<float>(3, 3) = 1.0;
+
+	logFile << "\n-----------------Projection matrix-------------------------\n";
+	for (int i = 0; i < 4; i++){
+		for (int j = 0; j < 4; j++){
+			logFile << projection.at<float>(i, j) << "  ";
+		}
+		logFile << endl;
+	}
+	
 	logFile.close();
 }
 
@@ -624,14 +808,24 @@ Point2f * Calibration::transformPoint(Point3f kinect) {
 						+ (kinect.z) * cvmGet(solutieQ, 6, 0)
 						+ cvmGet(solutieQ, 7, 0);*/
 	Mat XYZ = Mat(4, 1, CV_32FC1);
+	//Mat XYZ = Mat(3, 1, CV_32FC1);
+
 	XYZ.at<float>(0, 0) = kinect.x;
 	XYZ.at<float>(1, 0) = kinect.y;
 	XYZ.at<float>(2, 0) = kinect.z;
 	XYZ.at<float>(3, 0) = 1;
 	Mat UV = projection * XYZ;
 
+	//Mat UV = homographyMatrix * XYZ;
+
 	int xPrim = round(UV.at<float>(0, 0) / UV.at<float>(3, 0));
 	int yPrim = round(UV.at<float>(1, 0) / UV.at<float>(3, 0));
+	
+	//int xPrim = round(UV.at<float>(0, 0)) + 320;
+	//int yPrim = round(UV.at<float>(1, 0)) + 240;
+
+	//xPrim /= UV.at<float>(2, 0);
+	//yPrim /= UV.at<float>(2, 0);
 	
 	proiector->x = xPrim;
 	proiector->y = yPrim;
@@ -793,7 +987,8 @@ void Calibration::solveSVD(){
 
 //realizarea transformarii tuturor pixelilor din imagine
 void Calibration::doTransformationOfImage(){
-	Mat imgKinect = imread("calibration\\calibration10.png", CV_LOAD_IMAGE_UNCHANGED | CV_LOAD_IMAGE_ANYDEPTH);
+	Mat imgKinect = imread("calibration\\calibration0.png", CV_LOAD_IMAGE_UNCHANGED | CV_LOAD_IMAGE_ANYDEPTH);
+	flip(imgKinect, imgKinect,1);
 	//while (true){
 		//Mat imgKinect = Mat(Size(640, 480), CV_16UC1, this->aquisition.Update());
 		//flip(imgKinect, imgKinect, 1);
@@ -819,22 +1014,28 @@ void Calibration::doTransformationOfImage(){
 
 				Vector4 worldCoordinates = NuiTransformDepthImageToSkeleton((long)x, (long)y, z<<3, NUI_IMAGE_RESOLUTION_640x480);
 
-				Point3f kinect = Point3f(worldCoordinates.x, worldCoordinates.y, worldCoordinates.z);
+			/*	worldCoordinates.x *= 1000;
+				worldCoordinates.y *= 1000;
+				worldCoordinates.z *= 1000;*/
+				Point3f kinect = Point3f(x, y, -worldCoordinates.z);
 
 				Point2f * projector = this->transformPoint(kinect);
 
-
+				/*if (x == 163 && y == 143){
+					cout << worldCoordinates.x << "  " << worldCoordinates.y << "  " << worldCoordinates.z << endl;
+				}*/
+				
 				if (projector->x >= 0 && projector->x < 640 && projector->y < 480 ){
-					if (abs(y - projector->y) < 480 && abs(y - projector->y) >= 0){
-						imgProjector.at<ushort>(Point(projector->x, abs(y - projector->y))) = z + z * 300;
+					if ( projector->y < 480 &&  projector->y >= 0){
+						imgProjector.at<ushort>(Point(projector->x, projector->y)) = z + z * 300;
 						//f << "x pixel " << x << " y pixel:" << y << " world->x: " << worldCoordinates.x << " world->y: " << worldCoordinates.y << " world->z: " << worldCoordinates.z << " projector x = " << projector->x << " prjector y = " << projector->y << endl;
 
 					}
 					else{
-						//f << "x pixel " << x << " y pixel:" << y << " world->x: " << worldCoordinates.x << " world->y: " << worldCoordinates.y << " world->z: " << worldCoordinates.z << " projector x = " << projector->x << " prjector y = " << projector->y << endl;
+						f << "x pixel " << x << " y pixel:" << y << " world->x: " << worldCoordinates.x << " world->y: " << worldCoordinates.y << " world->z: " << worldCoordinates.z << " projector x = " << projector->x << " prjector y = " << projector->y << endl;
 					}
 				}else{
-					//	f << "x pixel " << x << " y pixel:" << y << " world->x: " << worldCoordinates.x << " world->y: " << worldCoordinates.y << " world->z: " << worldCoordinates.z << " projector x = " << projector->x << " prjector y = " << projector->y << endl;
+						f << "x pixel " << x << " y pixel:" << y << " world->x: " << worldCoordinates.x << " world->y: " << worldCoordinates.y << " world->z: " << worldCoordinates.z << " projector x = " << projector->x << " prjector y = " << projector->y << endl;
 				}
 			}
 		}
@@ -874,7 +1075,7 @@ void Calibration::doTransformationOfImage(){
 
 void Calibration::solvePnP(){
 
-	Mat A = Mat(2*NR_POINTS, 12, CV_64FC1);
+	Mat A = Mat(2*NR_POINTS, 9, CV_64FC1);
 	float x, y, z;
 
 	std::vector<Point2d> puncteProiector;
@@ -904,29 +1105,29 @@ void Calibration::solvePnP(){
 
 		A.at<double>(i , 0) = puncteKinect.at(index).x;
 		A.at<double>(i , 1) = puncteKinect.at(index).y;
-		A.at<double>(i , 2) = puncteKinect.at(index).z;
-		A.at<double>(i , 3) = 1;
+		//A.at<double>(i , 2) = puncteKinect.at(index).z;
+		A.at<double>(i , 2) = 1;
+		A.at<double>(i , 3) = 0;
 		A.at<double>(i , 4) = 0;
 		A.at<double>(i , 5) = 0;
-		A.at<double>(i , 6) = 0;
-		A.at<double>(i , 7) = 0;
-		A.at<double>(i , 8) = -puncteProiector.at(index).x * puncteKinect.at(index).x;
-		A.at<double>(i , 9) = -puncteProiector.at(index).x * puncteKinect.at(index).y;
-		A.at<double>(i , 10) = -puncteProiector.at(index).x * puncteKinect.at(index).z;
-		A.at<double>(i , 11) = -puncteProiector.at(index).x;
+		//A.at<double>(i , 7) = 0;
+		A.at<double>(i , 6) = -puncteProiector.at(index).x * puncteKinect.at(index).x;
+		A.at<double>(i , 7) = -puncteProiector.at(index).x * puncteKinect.at(index).y;
+		//A.at<double>(i , 8) = -puncteProiector.at(index).x * puncteKinect.at(index).z;
+		A.at<double>(i , 8) = -puncteProiector.at(index).x;
 
 		A.at<double>(i + 1, 0) = 0;
 		A.at<double>(i + 1, 1) = 0;
 		A.at<double>(i + 1, 2) = 0;
-		A.at<double>(i + 1, 3) = 0;
-		A.at<double>(i + 1, 4) = puncteKinect.at(index).x;
-		A.at<double>(i + 1, 5) = puncteKinect.at(index).y;
-		A.at<double>(i + 1, 6) = puncteKinect.at(index).z;
-		A.at<double>(i + 1, 7) = 1;
-		A.at<double>(i + 1, 8) = -puncteProiector.at(index).y * puncteKinect.at(index).x;
-		A.at<double>(i + 1, 9) = -puncteProiector.at(index).y * puncteKinect.at(index).y;
-		A.at<double>(i + 1, 10) = -puncteProiector.at(index).y * puncteKinect.at(index).z;
-		A.at<double>(i + 1, 11) = -puncteProiector.at(index).y;
+		//A.at<double>(i + 1, 3) = 0;
+		A.at<double>(i + 1, 3) = puncteKinect.at(index).x;
+		A.at<double>(i + 1, 4) = puncteKinect.at(index).y;
+		//A.at<double>(i + 1, 6) = puncteKinect.at(index).z;
+		A.at<double>(i + 1, 5) = 1;
+		A.at<double>(i + 1, 6) = -puncteProiector.at(index).y * puncteKinect.at(index).x;
+		A.at<double>(i + 1, 7) = -puncteProiector.at(index).y * puncteKinect.at(index).y;
+		//A.at<double>(i + 1, ) = -puncteProiector.at(index).y * puncteKinect.at(index).z;
+		A.at<double>(i + 1, 8) = -puncteProiector.at(index).y;
 		
 		index++;
 	}
@@ -945,12 +1146,12 @@ void Calibration::solvePnP(){
 	cv::eigen(eigenInputFloat, solutieValori, solutieValoriVector);
 
 
-	for (int j = 0; j < 12; j++){
-		for (int i = 0; i < 12; i++){
-			//cout << solutieValoriVector.at<float>(i, j) << "   ";
-			cvmSet(solutieQ, i, 0, solutieValoriVector.at<float>(i, 11));
+	for (int j = 0; j < 9; j++){
+		for (int i = 0; i < 9; i++){
+			cout << solutieValoriVector.at<float>(i, j) << "   ";
+			//cvmSet(solutieQ, i, 0, solutieValoriVector.at<float>(i, 11));
 		}
-		//cout << endl << endl << endl;
+		cout << endl << endl << endl;
 	}
 
 	ofstream fis("homography.txt");
@@ -958,8 +1159,8 @@ void Calibration::solvePnP(){
 	//create homography matrix
 	//matricea de transformare(rotatie+translatie)
 	for (int i = 0; i < 3; i++){
-		for (int j = 0; j < 4; j++){
-			homographyMatrix.at<float>(i, j) = cvmGet(solutieQ, i * 4 + j, 0);
+		for (int j = 0; j < 3; j++){
+			homographyMatrix.at<float>(i, j) = solutieValoriVector.at<float>( i * 3 + j, 8);
 			fis << homographyMatrix.at<float>(i, j) << " ";
 		}
 		fis << endl;
@@ -1073,27 +1274,58 @@ void Calibration::solvePnP(){
 	projection.at<float>(3, 3) = 1.0;
 
 	*/
-	cout << endl << endl << "Projection\n\n";
-	for (int i = 0; i < 4; i++)
+	//cout << endl << endl << "Projection\n\n";
+	/*for (int i = 0; i < 4; i++)
 	{
 		for (int j = 0; j < 4; j++){
 			cout << projection.at<float>(i, j) << "   ";
 		}
 
 		cout << endl;
-	}
+	}*/
 }
 
 void Calibration::loadCalibration(){
-	ifstream f("calibration.txt");
-
-	double number;
-	for (int i = 0; i < 11; i++){
-		f >> number;
-		cvmSet(solutieQ, i, 0, number);
+	std::vector<Point2f> puncteProiector;
+	std::vector<Point3f> puncteKinect;
+	float x, y, z;
+	//citesc coordonatele proiectate({x,y})
+	ifstream proiectorFile("coordonateProiector.txt");
+	for (int i = 0; i < NR_POINTS; i++){
+		proiectorFile >> x >> y;
+		puncteProiector.push_back(Point2f(x, y));
 	}
 
-	f.close();
+	//citesc coordonatele detectate(centrul cercurilor {x, y, z})
+	ifstream kinectFile("coordonateDetectate.txt");
+	ifstream pp("coordonateXYPuncteDetectate.txt");
+	for (int i = 0; i < NR_POINTS; i++){
+		kinectFile >> x >> y >> z;
+		pp >> x >> y;
+		puncteKinect.push_back(Point3f(x, y, z));
+	}
+
+	pp.close();
+	proiectorFile.close();
+	kinectFile.close();
+
+	vector<pair<Point3f, pair<Point2f, Point2f>>> perechi;
+	int index=0;
+	for (auto point : puncteKinect){
+		Point2f * pointProjector = this->transformPoint(point);
+
+		perechi.push_back(make_pair(point, make_pair(puncteProiector.at(index), *pointProjector)));
+
+		index++;
+	}
+
+	ofstream file("perechi.txt");
+
+	for (auto pereche : perechi){
+		file << pereche.first.x << setw(20) << pereche.first.y << setw(20) << pereche.first.z << "  ; " << pereche.second.first.x << setw(20)
+			<< pereche.second.first.y<<"      "<<pereche.second.second.x<< setw(20)<<pereche.second.second.y << endl;
+	}
+	file.close();
 }
 
 void Calibration::drawGrid(Mat image){
