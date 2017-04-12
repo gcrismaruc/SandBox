@@ -20,7 +20,7 @@ int Calibration::x1 = 0;
 int Calibration::y1 = 0;
 int Calibration::x2 = 640;
 int Calibration::y2 = 480;
-const int Calibration::NR_POINTS = 65;
+const int Calibration::NR_POINTS = 12;
 int Calibration::THRESH_MAX = 1000;
 int Calibration::THRESH_MIN = 900;
 //int Calibration::THRESH_MAX = 805;
@@ -467,7 +467,7 @@ void Calibration::getCoef(){
 	for (int i = 0; i < NR_POINTS; i++){
 		kinectFile >> x >> y >> z;
 		//pp >> x >> y;
-		puncteKinect.push_back(Point3d(x, y, -z));
+		puncteKinect.push_back(Point3d(x, y, z));
 	}
 
 	pp.close();
@@ -567,21 +567,53 @@ void Calibration::getCoef(){
 		}
 		logFile << endl;
 	}
+
+	//calculate scale
+	double h20 = homographyMatrix.at<float>(2, 0);
+	double h21 = homographyMatrix.at<float>(2, 1);
+	double h22 = homographyMatrix.at<float>(2, 2);
+	double wLen = sqrt(h20*h20 + h21*h21 + h22*h22);
+
+	cout << "\n\nwLen " << wLen << endl;
+	int nrNegativeWeights = 0;
+	for (auto pointKinect : puncteKinect){
+		float sum = h20*pointKinect.x + h21*pointKinect.y + h22*pointKinect.z;
+		sum += homographyMatrix.at<float>(2, 3);
+		
+		if (sum < 0.0)
+			nrNegativeWeights++;
+	}
+
+	if (nrNegativeWeights == 0 || nrNegativeWeights == NR_POINTS){
+		if (nrNegativeWeights > 0)
+			wLen = -wLen;
+		cout << "nrNegativeWeights = " << nrNegativeWeights << endl;
+	}
+	else{
+		cout << "Ponderi negative\n";
+	}
+	
+	//scalare homography
+	for (int i = 0; i < 3; i++){
+		for (int j = 0; j < 4; j++){
+			homographyMatrix.at<float>(i, j) /= wLen;
+		}
+	}
 	
 	//create projection matrix
 	for (int i = 0; i < 2; i++){
 		for (int j = 0; j < 4; j++){
-			projection.at<float>(i, j) = homographyMatrix.at<float>(i, j) / homographyMatrix.at<float>(2,3);
+			projection.at<float>(i, j) = homographyMatrix.at<float>(i, j);
 		}
 	}
 	for (int i = 0; i < 4; i++){
 		projection.at<float>(2, i) = 0;
 	}
 	for (int i = 0; i < 4; i++){
-		projection.at<float>(3, i) = homographyMatrix.at<float>(2,i)/homographyMatrix.at<float>(2,3);
+		projection.at<float>(3, i) = homographyMatrix.at<float>(2,i);
 	}
 
-	projection.at<float>(2, 2) = 1;
+	projection.at<float>(2, 3) = -1.0;
 	
 
 	logFile << "\n-----------------Projection matrix-------------------------\n";
@@ -593,75 +625,132 @@ void Calibration::getCoef(){
 	}
 
 	//calculate zRange
-	//double zRangeVector[NR_POINTS];
-	//int i = 0;
-	//for (auto pointKinect : puncteKinect){
-	//	Mat xyzOmogen = Mat(4, 1, CV_32FC1);
-	//	xyzOmogen.at<float>(0, 0) = pointKinect.x;
-	//	xyzOmogen.at<float>(1, 0) = pointKinect.y;
-	//	xyzOmogen.at<float>(2, 0) = pointKinect.z;
-	//	xyzOmogen.at<float>(3, 0) = 1.0;
+	double zRangeVector[NR_POINTS];
+	int i = 0;
+	for (auto pointKinect : puncteKinect){
+		Mat xyzOmogen = Mat(4, 1, CV_32FC1);
+		xyzOmogen.at<float>(0, 0) = pointKinect.x;
+		xyzOmogen.at<float>(1, 0) = pointKinect.y;
+		xyzOmogen.at<float>(2, 0) = pointKinect.z;
+		xyzOmogen.at<float>(3, 0) = 1.0;
 
-	//	Mat z = projection*xyzOmogen;
-	//	zRangeVector[i] = (z.at<float>(2, 0) / z.at<float>(3, 0));
-	//	cout << zRangeVector[i] << "  ";
-	//	i++;
-	//}
-	//cout << endl;
+		cout << pointKinect.x << " " << pointKinect.y << " " << pointKinect.z << " " << endl;
 
-	//float zMin = 9999, zMax=-9999;
+		Mat z = projection*xyzOmogen;
+		zRangeVector[i] = (z.at<float>(2, 0) / z.at<float>(3, 0));
+		//zRangeVector[i] = -pointKinect.z;
+		cout << zRangeVector[i] << "  ";
+		i++;
+	}
+	cout << endl;
 
-	//for (double z : zRangeVector){
-	//	if (z < zMin)
-	//		zMin = z;
-	//	if (z > zMax)
-	//		zMax = z;
-	//}
+	float zMin = 9999, zMax=-9999;
+
+	for (double z : zRangeVector){
+		if (z < zMin)
+			zMin = z;
+		if (z > zMax)
+			zMax = z;
+	}
 
 	//cv::Range zRange = cv::Range(zMin, zMax);
 
 	//cout << "zRangeMin : " << zRange.start << "   zRangeMax : " << zRange.end << endl;
 	//cout << "zSize : " << zRange.size() << endl;
 
-	////double interval
-	//zRange = cv::Range(zRange.start - zRange.size()*0.5, zRange.end + zRange.size()*0.5);
-
-	//cout << "zRangeMin : " << zRange.start << "   zRangeMax : " << zRange.end << endl;
-	//cout << "zSize : " << zRange.size() << endl;
-
-	//Mat invViewport = Mat(4, 4, CV_32FC1);
-	//invViewport = Scalar(1.0);
-
-	//invViewport.at<float>(0, 0) = 2.0 / double(640);
-	//invViewport.at<float>(0, 3) = -1.0;
-	//invViewport.at<float>(1, 1) = 2.0 / double(480);
-	//invViewport.at<float>(1, 3) = -1.0;
-	//invViewport.at<float>(2, 2) = 2.0 / (zRange.size());
-	//invViewport.at<float>(2, 3) = -2.0*zMin / (zRange.size()) - 1.0;
-	////projection = invViewport*projection;
-
-	//logFile << "\n-----------------invViewPort matrix-------------------------\n";
-	//for (int i = 0; i < 4; i++){
-	//	for (int j = 0; j < 4; j++){
-	//		logFile << invViewport.at<float>(i, j) << "  ";
-	//	}
-	//	logFile << endl;
-	//}
-
-	//logFile << "\n-----------------Full projection matrix-------------------------\n";
-	//for (int i = 0; i < 4; i++){
-	//	for (int j = 0; j < 4; j++){
-	//		logFile << projection.at<float>(i, j) << "  ";
-	//	}
-	//	logFile << endl;
-	//}
+	double zRangeSize;
+	//double interval
+	zMin *= 2.0;
+	zMax *= 0.5;
+	zRangeSize = zMax - zMin;
 
 
-	// Decompose the projection matrix into:
-/*	cv::Mat K(3, 3, cv::DataType<float>::type); // intrinsic parameter matrix
-	cv::Mat R(3, 3, cv::DataType<float>::type); // rotation matrix
-	cv::Mat T(4, 1, cv::DataType<float>::type); // translation vector
-	cv::decomposeProjectionMatrix(projection, K, R, T);
+	cout << "zRangeMin : " << zMin << "   zRangeMax : " << zMax << endl;
+	cout << "zSize : " << zRangeSize << endl;
+
+	Mat invViewport = Mat(4, 4, CV_32FC1);
+	invViewport = Scalar(0.0);
+
+	invViewport.at<float>(0, 0) = 2.0 / 1024;
+	invViewport.at<float>(0, 3) = -1.0;
+	invViewport.at<float>(1, 1) = 2.0 / 768;
+	invViewport.at<float>(1, 3) = -1.0;
+	invViewport.at<float>(2, 2) = 2.0 / (zRangeSize);
+	invViewport.at<float>(2, 3) = -2.0*zMin / (zRangeSize) - 1.0;
+	invViewport.at<float>(3, 3) = 1.0;
+
+	/*invViewport.at<float>(0, 0) = 2.0 * zMin / 640;
+	invViewport.at<float>(0, 2) = 1;
+	invViewport.at<float>(1, 1) = 2.0 * zMin / 480;
+	invViewport.at<float>(1, 2) = 1;
+	invViewport.at<float>(2, 2) = 2.0 / (zRangeSize);
+	invViewport.at<float>(2, 3) = -2.0*zMin / (zRangeSize)-1.0;
+	invViewport.at<float>(3, 2) = -1.0;*/
+
+	//projection = invViewport*projection;
+
+	logFile << "\n-----------------invViewPort matrix-------------------------\n";
+	for (int i = 0; i < 4; i++){
+		for (int j = 0; j < 4; j++){
+			logFile << invViewport.at<float>(i, j) << "  ";
+		}
+		logFile << endl;
+	}
+
+	logFile << "\n-----------------Full projection matrix-------------------------\n";
+	for (int i = 0; i < 4; i++){
+		for (int j = 0; j < 4; j++){
+			logFile << projection.at<float>(i, j) << "  ";
+		}
+		logFile << endl;
+	}
+
+
+	//// Decompose the projection matrix into:
+	//cv::Mat K(3, 3, cv::DataType<float>::type); // intrinsic parameter matrix
+	//cv::Mat R(3, 3, cv::DataType<float>::type); // rotation matrix
+	//cv::Mat T(4, 1, cv::DataType<float>::type); // translation vector
+
+	//cv::decomposeProjectionMatrix(homographyMatrix, K, R, T);
+
+
+	/*vector<Mat> RS;
+	vector<Mat> TS;
+	vector<Mat> NS;
+
+	float fx = 368.096588;
+	float fy = 368.096588;
+
+	float cx = 261.696594;
+	float cy = 202.522202;
+
+	K = Scalar(0.0);
+	K.at<float>(0, 0) = fx;
+	K.at<float>(1, 1) = fy;
+	K.at<float>(2, 2) = 1;
+	K.at<float>(0, 2) = 640.0 / 2;
+	K.at<float>(1, 2);
+
+	Mat homography3 = Mat(3, 3, CV_32FC1);
+
+	homography3.at<float>(0, 0) = homographyMatrix.at<float>(0, 0);
+	homography3.at<float>(0, 1) = homographyMatrix.at<float>(0, 1);
+	homography3.at<float>(0, 2) = homographyMatrix.at<float>(0, 3);
+
+	homography3.at<float>(1, 0) = homographyMatrix.at<float>(1, 0);
+	homography3.at<float>(1, 1) = homographyMatrix.at<float>(1, 1);
+	homography3.at<float>(1, 2) = homographyMatrix.at<float>(1, 3);
+
+	homography3.at<float>(2, 0) = homographyMatrix.at<float>(2, 0);
+	homography3.at<float>(2, 1) = homographyMatrix.at<float>(2, 1);
+	homography3.at<float>(2, 2) = homographyMatrix.at<float>(2, 3);
+
+		
+	cv::decomposeHomographyMat(homography3, K, RS, TS, NS);
+
+
+	Mat R = RS.at(0);
+	Mat T = TS.at(0);
 
 	logFile << "\n-----------------Intrinsic parameter matrix-------------------------\n";
 	for (int i = 0; i < 3; i++){
@@ -699,6 +788,7 @@ void Calibration::getCoef(){
 	}
 
 	projection.at<float>(3, 3) = 1.0;
+	*/
 
 	logFile << "\n-----------------Projection matrix-------------------------\n";
 	for (int i = 0; i < 4; i++){
@@ -707,7 +797,7 @@ void Calibration::getCoef(){
 		}
 		logFile << endl;
 	}
-	*/
+	
 
 	logFile.close();
 }
@@ -793,20 +883,7 @@ void Calibration::decomposeHomography(){
 Point2f * Calibration::transformPoint(Point3f kinect) {
 	Point2f *proiector = new Point2f();
 
-	/*double denominator = kinect.x * cvmGet(solutieQ, 8, 0)
-						+ kinect.y * cvmGet(solutieQ, 9, 0)
-						+ (kinect.z) * cvmGet(solutieQ, 10, 0)
-						+ cvmGet(solutieQ, 11, 0);
-
-	double xNumerator = kinect.x * cvmGet(solutieQ, 0, 0)
-						+ kinect.y * cvmGet(solutieQ, 1, 0)
-						+ (kinect.z) * cvmGet(solutieQ, 2, 0)
-						+ cvmGet(solutieQ, 3, 0);
-
-	double yNumerator = kinect.x * cvmGet(solutieQ, 4, 0)
-						+ kinect.y * cvmGet(solutieQ, 5, 0)
-						+ (kinect.z) * cvmGet(solutieQ, 6, 0)
-						+ cvmGet(solutieQ, 7, 0);*/
+	
 	Mat XYZ = Mat(4, 1, CV_32FC1);
 	//Mat XYZ = Mat(3, 1, CV_32FC1);
 
@@ -820,12 +897,7 @@ Point2f * Calibration::transformPoint(Point3f kinect) {
 
 	int xPrim = round(UV.at<float>(0, 0) / UV.at<float>(3, 0));
 	int yPrim = round(UV.at<float>(1, 0) / UV.at<float>(3, 0));
-	
-	//int xPrim = round(UV.at<float>(0, 0)) + 320;
-	//int yPrim = round(UV.at<float>(1, 0)) + 240;
 
-	//xPrim /= UV.at<float>(2, 0);
-	//yPrim /= UV.at<float>(2, 0);
 	
 	proiector->x = xPrim;
 	proiector->y = yPrim;
@@ -835,171 +907,18 @@ Point2f * Calibration::transformPoint(Point3f kinect) {
 void Calibration::solveSVD(){
 
 
-	CvMat *coordonateProiector = cvCreateMat(140, 1, CV_64FC1);
-	CvMat *coordonateXProiector = cvCreateMat(70, 1, CV_64FC1);
-	CvMat *coordonateYProiector = cvCreateMat(70, 1, CV_64FC1);
-	CvMat *coordonateXKinect = cvCreateMat(70, 1, CV_64FC1);
-	CvMat *coordonateYKinect = cvCreateMat(70, 1, CV_64FC1);
-	CvMat *coordonateZKinect = cvCreateMat(70, 1, CV_64FC1);
-
-	CvMat *matrice = cvCreateMat(140, 12, CV_64FC1);
-
-	float x, y, z;
-
-	//citesc coordonatele proiectate({x,y})
-	ifstream proiectorFile("coordonateProiector.txt");
-	for (int i = 0; i < 70; i++){
-		proiectorFile >> x >> y;
-
-		cvmSet(coordonateXProiector, i, 0, x);
-		cvmSet(coordonateYProiector, i, 0, y);
-		cvmSet(coordonateProiector, 2 * i, 0, x);
-		cvmSet(coordonateProiector, 2 * i + 1, 0, y);
-	}
-
-	//citesc coordonatele detectate(centrul cercurilor {x, y, z})
-	ifstream kinectFile("coordonateDetectate.txt");
-	for (int i = 0; i < 70; i++){
-		kinectFile >> x >> y >> z;
-
-		cvmSet(coordonateXKinect, i, 0, x);
-		cvmSet(coordonateYKinect, i, 0, y);
-		cvmSet(coordonateZKinect, i, 0, z);
-	}
-
-	proiectorFile.close();
-	kinectFile.close();
-
-
-	//creare matrice A pentru sistem
-	int index = 0;
-	for (int i = 0; i < 140; i++) {
-
-		if (i % 2 == 0) {
-			cout << cvmGet(coordonateXProiector, i / 2, 0) << "  " << cvmGet(coordonateYProiector, i / 2, 0);
-			cout << " " << cvmGet(coordonateXKinect, i / 2, 0) << " " << cvmGet(coordonateYKinect, i / 2, 0) << " " << cvmGet(coordonateZKinect, i / 2, 0) << endl;
-
-			cvmSet(matrice, i, 0, cvmGet(coordonateXKinect, i / 2, 0)); //xk
-			cvmSet(matrice, i, 1, cvmGet(coordonateYKinect, i / 2, 0)); //yk
-			cvmSet(matrice, i, 2, cvmGet(coordonateZKinect, i / 2, 0)); //zk
-			cvmSet(matrice, i, 3, 1);
-			cvmSet(matrice, i, 4, 0);
-			cvmSet(matrice, i, 5, 0);
-			cvmSet(matrice, i, 6, 0);
-			cvmSet(matrice, i, 7, 0);
-			cvmSet(matrice, i, 8, (-1) * cvmGet(coordonateXKinect, i / 2, 0) * cvmGet(coordonateXProiector, i / 2, 0));
-			cvmSet(matrice, i, 9, (-1) * cvmGet(coordonateYKinect, i / 2, 0) * cvmGet(coordonateXProiector, i / 2, 0));
-			cvmSet(matrice, i, 10, (-1) * (cvmGet(coordonateZKinect, i / 2, 0)) * cvmGet(coordonateXProiector, i / 2, 0));
-			cvmSet(matrice, i, 11, (-1) * cvmGet(coordonateXProiector, i / 2, 0));
-
-		}
-		else {
-			cout << cvmGet(coordonateXProiector, i / 2, 0) << "  " << cvmGet(coordonateYProiector, i / 2, 0);
-			cout << " " << cvmGet(coordonateXKinect, i / 2, 0) << " " << cvmGet(coordonateYKinect, i / 2, 0) << " " << cvmGet(coordonateZKinect, i / 2, 0) << endl;			cvmSet(matrice, i, 0, 0);
-
-			cvmSet(matrice, i, 0, 0);
-			cvmSet(matrice, i, 1, 0);
-			cvmSet(matrice, i, 2, 0);
-			cvmSet(matrice, i, 3, 0);
-			cvmSet(matrice, i, 4, cvmGet(coordonateXKinect, i / 2, 0)); //xk
-			cvmSet(matrice, i, 5, cvmGet(coordonateYKinect, i / 2, 0)); //yk
-			cvmSet(matrice, i, 6, cvmGet(coordonateZKinect, i / 2, 0)); //zk
-			cvmSet(matrice, i, 7, 1);
-			cvmSet(matrice, i, 8, (-1) * cvmGet(coordonateXKinect, i / 2, 0) * cvmGet(coordonateYProiector, i / 2, 0));
-			cvmSet(matrice, i, 9, (-1) * cvmGet(coordonateYKinect, i / 2, 0) * cvmGet(coordonateYProiector, i / 2, 0));
-			cvmSet(matrice, i, 10, (-1) * (cvmGet(coordonateZKinect, i / 2, 0)) * cvmGet(coordonateYProiector, i / 2, 0));
-			cvmSet(matrice, i, 11, (-1) * cvmGet(coordonateYProiector, i / 2, 0));
-
-		}
-	}
-
-	cout << "-------------------------------------------------------------------------\n";
-	for (int i = 0; i < 140; i++){
-		for (int j = 0; j < 12; j++){
-			cout << cvmGet(matrice, i, j) << " ";
-		}
-		cout << endl;
-	}
-
-	cout << "Coordonate proiector-------------------------------------------------------------------------\n";
-
-	for (int i = 0; i < 72; i += 2){
-		cout << cvmGet(coordonateProiector, i, 0) << "  " << cvmGet(coordonateProiector, i + 1, 0) << endl;
-	}
-
-	cvSolve(matrice, coordonateProiector, solutieQ, CV_SVD);
-
-	
-	ofstream f("calibration.txt");
-
-	cout << "solutieQ------------------------------\n";
-	for (int i = 0; i < 12; i++){
-		cout << cvmGet(solutieQ, i, 0) << "   ";
-		f << cvmGet(solutieQ, i, 0) << "   ";
-	}
-	f.close();
-
-	cout << "Homography----------------------------------\n";
-	//create homography matrix
-	//matricea de transformare(rotatie+translatie)
-	for (int i = 0; i < 3; i++){
-		for (int j = 0; j < 4; j++){
-			homographyMatrix.at<float>(i, j) = cvmGet(solutieQ, i * 4 + j, 0);
-			cout << homographyMatrix.at<float>(i, j) << " ";
-		}
-		cout << endl;
-	}
-
-	//create projection matrix
-	for (int i = 0; i < 2; i++){
-		for (int j = 0; j < 4; j++){
-			projection.at<float>(i, j) = homographyMatrix.at<float>(i, j);
-		}
-	}
-
-	for (int i = 0; i < 4; i++){
-		projection.at<float>(2, i) = 0;
-	}
-
-	for (int i = 0; i < 4; i++){
-		projection.at<float>(3, i) = homographyMatrix.at<float>(2, i);
-	}
-
-	projection.at<float>(2, 2) = 1;
-
-
-	for (int i = 0; i < 4; i++){
-		//projection.at<float>(i, 3) *= (0.95); // pe Y
-		//projection.at<float>(i, 1) *= (-0.05); //pe X
-
-		//projection.at<float>(i, 0) *= 3;
-	}
-
-	cout << "\n\tProjection matrix\n\n";
-	for (int i = 0; i < 4; i++){
-		for (int j = 0; j < 4; j++){
-			cout << projection.at<float>(i, j) << "  ";
-		}
-		cout << endl;
-	}
 
 }
 
 //realizarea transformarii tuturor pixelilor din imagine
 void Calibration::doTransformationOfImage(){
-	Mat imgKinect = imread("calibration\\calibration0.png", CV_LOAD_IMAGE_UNCHANGED | CV_LOAD_IMAGE_ANYDEPTH);
+	Mat imgKinect = imread("calibration\\calibration10.png", CV_LOAD_IMAGE_UNCHANGED | CV_LOAD_IMAGE_ANYDEPTH);
 	flip(imgKinect, imgKinect,1);
 	//while (true){
 		//Mat imgKinect = Mat(Size(640, 480), CV_16UC1, this->aquisition.Update());
 		//flip(imgKinect, imgKinect, 1);
 
-		/*Rect region_of_interest = Rect(150, 80, 420, 340);
-		Mat imgKinect1 = imgKinect(region_of_interest).clone();
-
-		resize(imgKinect1, imgKinect, Size(640, 480), 0, 0, INTER_CUBIC);
-		*/
-
-		Mat imgProjector = Mat(Size(640, 480), CV_16UC1, Scalar(0, 0, 0));
+		Mat imgProjector = Mat(Size(1024, 768), CV_16UC1, Scalar(0, 0, 0));
 		Size size = imgKinect.size();
 		int width = size.width;
 		int height = size.height;
@@ -1013,29 +932,15 @@ void Calibration::doTransformationOfImage(){
 				ushort z = imgKinect.at<ushort>(Point(x, y));
 
 				Vector4 worldCoordinates = NuiTransformDepthImageToSkeleton((long)x, (long)y, z<<3, NUI_IMAGE_RESOLUTION_640x480);
-
-			/*	worldCoordinates.x *= 1000;
-				worldCoordinates.y *= 1000;
-				worldCoordinates.z *= 1000;*/
 				Point3f kinect = Point3f(x, y, -worldCoordinates.z);
-
 				Point2f * projector = this->transformPoint(kinect);
 
-				/*if (x == 163 && y == 143){
-					cout << worldCoordinates.x << "  " << worldCoordinates.y << "  " << worldCoordinates.z << endl;
-				}*/
 				
-				if (projector->x >= 0 && projector->x < 640 && projector->y < 480 ){
-					if ( projector->y < 480 &&  projector->y >= 0){
-						imgProjector.at<ushort>(Point(projector->x, projector->y)) = z + z * 300;
-						//f << "x pixel " << x << " y pixel:" << y << " world->x: " << worldCoordinates.x << " world->y: " << worldCoordinates.y << " world->z: " << worldCoordinates.z << " projector x = " << projector->x << " prjector y = " << projector->y << endl;
-
-					}
-					else{
-						f << "x pixel " << x << " y pixel:" << y << " world->x: " << worldCoordinates.x << " world->y: " << worldCoordinates.y << " world->z: " << worldCoordinates.z << " projector x = " << projector->x << " prjector y = " << projector->y << endl;
-					}
+				if (projector->x >= 0 && projector->x < 640 && projector->y < 480 && projector->y >= 0){
+					imgProjector.at<ushort>(Point(projector->x, projector->y)) = z + z * 300;
+					f << "x pixel " << x << " y pixel:" << y << " world->x: " << worldCoordinates.x << " world->y: " << worldCoordinates.y << " world->z: " << worldCoordinates.z << " projector x = " << projector->x << " prjector y = " << projector->y << endl;
 				}else{
-						f << "x pixel " << x << " y pixel:" << y << " world->x: " << worldCoordinates.x << " world->y: " << worldCoordinates.y << " world->z: " << worldCoordinates.z << " projector x = " << projector->x << " prjector y = " << projector->y << endl;
+					f << "x pixel " << x << " y pixel:" << y << " world->x: " << worldCoordinates.x << " world->y: " << worldCoordinates.y << " world->z: " << worldCoordinates.z << " projector x = " << projector->x << " prjector y = " << projector->y << endl;
 				}
 			}
 		}
@@ -1059,16 +964,6 @@ void Calibration::doTransformationOfImage(){
 		imshow("proiector", imgProjector);
 		imshow("kinect", imgKinect);
 		waitKey(0);
-
-	
-		/*vector<int> compression_params;
-		compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
-		compression_params.push_back(100);
-		const string imageName1 = "projector.png";
-		const string imageName2 = "kinect.png";
-		imwrite(imageName1, imgProjector, compression_params);
-		imwrite(imageName2, imgKinect, compression_params);*/
-
 		
 	//}
 }
