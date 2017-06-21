@@ -29,6 +29,10 @@ public:
 	static Mat homographyMatrix;
 	static Mat projection;
 
+	static float currentXCenter;
+	static float currentYCenter;
+	static float currentZCenter;
+
 	static double zFar;
 	static double zNear;
 
@@ -43,6 +47,10 @@ public:
 	vector<Point3f> vecOfDetectedCoordinates;
 	vector<Point2f> vecOfDetectedPixelCoordinates;
 	 
+
+	int detectCircelsForDisplay(Mat eightBitsImage, Mat sixteenBitsImage);
+	int getFramesAfterCalibration(USHORT * imageArray);
+	void updateCenterOfCurrentCircle();
 
 	Calibration(Aquisition *aquisition);
 	Calibration();
@@ -62,9 +70,6 @@ public:
 	void getCoef();
 	Point2f * transformPoint(Point3f kinect);
 	void doTransformationOfImage();
-	void drawGrid(Mat image);
-
-	void decomposeHomography();
 
 
 	int detectCircleForImage(Mat eightBitsImage, Mat sixteenBitsImage);
@@ -77,5 +82,7 @@ public:
 
 	void scalingImage();
 	void loadCalibration();
+
+	void zhangEstimation();
 };
 

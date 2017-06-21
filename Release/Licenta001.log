@@ -1,13 +1,47 @@
-﻿Build started 12/3/2016 4:16:35 PM.
+﻿Build started 4/12/2017 6:03:25 PM.
      1>Project "E:\Licenta\Licenta001\Licenta001.vcxproj" on node 2 (Build target(s)).
-     1>Link:
-         C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\bin\link.exe /ERRORREPORT:PROMPT /OUT:"E:\Licenta\Licenta001\Release\Licenta001.exe" /INCREMENTAL:NO /NOLOGO /LIBPATH:"C:\Program Files\Microsoft SDKs\Kinect\v1.8\lib\x86\\" /LIBPATH:"C:\Program Files\opencv\build\x64\vc12\lib" opencv_world310.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"E:\Licenta\Licenta001\Release\Licenta001.pdb" /SUBSYSTEM:CONSOLE /OPT:REF /OPT:ICF /LTCG /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"E:\Licenta\Licenta001\Release\Licenta001.lib" /MACHINE:X86 /SAFESEH Release\Aquisition.obj
-         Release\Calibration.obj
-         Release\DepthMap.obj
-         Release\main.obj
-     1>opencv_world310.lib(opencv_world310.dll) : fatal error LNK1112: module machine type 'x64' conflicts with target machine type 'X86'
+     1>ClCompile:
+         C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\CL.exe /c /I"C:\Program Files\Microsoft SDKs\Kinect\v1.8\inc" /I"C:\Program Files\opencv\build\x64\vc12\..\..\include" /Zi /nologo /W3 /WX- /O2 /Oi /Oy- /GL /D WIN32 /D NDEBUG /D _CONSOLE /D _UNICODE /D UNICODE /Gm- /EHsc /MD /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Release\\" /Fd"Release\vc120.pdb" /Gd /TP /analyze- /errorReport:prompt Aquisition.cpp Calibration.cpp DepthMap.cpp main.cpp
+         Aquisition.cpp
+         Calibration.cpp
+     1>Calibration.cpp(199): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>Calibration.cpp(200): warning C4244: 'initializing' : conversion from 'float' to 'int', possible loss of data
+     1>Calibration.cpp(202): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
+     1>Calibration.cpp(203): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
+     1>Calibration.cpp(229): warning C4244: 'argument' : conversion from 'int' to 'float', possible loss of data
+     1>Calibration.cpp(168): warning C4101: 'noComp' : unreferenced local variable
+     1>Calibration.cpp(580): warning C4244: 'initializing' : conversion from 'double' to 'float', possible loss of data
+     1>Calibration.cpp(599): warning C4244: '/=' : conversion from 'double' to 'float', possible loss of data
+     1>Calibration.cpp(632): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>Calibration.cpp(633): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>Calibration.cpp(634): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>Calibration.cpp(651): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>Calibration.cpp(653): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>Calibration.cpp(676): warning C4305: '=' : truncation from 'double' to 'float'
+     1>Calibration.cpp(678): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>Calibration.cpp(679): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>Calibration.cpp(822): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>Calibration.cpp(823): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>Calibration.cpp(824): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>Calibration.cpp(826): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>Calibration.cpp(827): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>Calibration.cpp(828): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>Calibration.cpp(834): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>Calibration.cpp(835): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>Calibration.cpp(898): warning C4244: 'initializing' : conversion from 'float' to 'int', possible loss of data
+     1>Calibration.cpp(899): warning C4244: 'initializing' : conversion from 'float' to 'int', possible loss of data
+     1>Calibration.cpp(902): warning C4244: '=' : conversion from 'int' to 'float', possible loss of data
+     1>Calibration.cpp(903): warning C4244: '=' : conversion from 'int' to 'float', possible loss of data
+     1>Calibration.cpp(935): warning C4244: 'argument' : conversion from 'int' to 'float', possible loss of data
+     1>Calibration.cpp(940): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+         DepthMap.cpp
+     1>DepthMap.cpp(172): warning C4244: '=' : conversion from 'float' to 'BYTE', possible loss of data
+     1>DepthMap.cpp(173): warning C4244: '=' : conversion from 'float' to 'BYTE', possible loss of data
+     1>DepthMap.cpp(174): warning C4244: '=' : conversion from 'float' to 'BYTE', possible loss of data
+         main.cpp
+     1>main.cpp(9): fatal error C1083: Cannot open include file: 'GL\glew.h': No such file or directory
      1>Done Building Project "E:\Licenta\Licenta001\Licenta001.vcxproj" (Build target(s)) -- FAILED.
 
 Build FAILED.
 
-Time Elapsed 00:00:00.86
+Time Elapsed 00:00:09.38
