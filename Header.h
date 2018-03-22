@@ -34,9 +34,6 @@ GLhandleARB idAttributeZCoordinate;
 
 GLhandleARB idAttributeColor;
 GLhandleARB idUniformColor;
-GLhandleARB pmatrix_location;
-GLhandleARB rmatrix_location;
-GLhandleARB smatrix_location;
 
 GLhandleARB projMatrix_location;
 GLhandleARB depthProjMatrix_location;
@@ -63,7 +60,11 @@ int vertexIndices[] = {
 GLuint * vertexIndices1;
 GLfloat *vertexPositions1;
 GLfloat *textureCoord1;
+GLubyte *colors;
 
+GLubyte *red, *green, *blue, *opacity;
+
+GLubyte *vertexColors;
 
 GLfloat textureCoord[] = {
 	0.0f, 0.0f,
@@ -79,57 +80,7 @@ GLfloat vertexPositions[] = {
 	-1.0f, 0.5f, -1.0f
 };
 
-
-GLfloat vertexColors[] = {
-	1.0f, 0.0f, 0.0f, 1.0f,
-	0.0f, 1.0f, 0.0f, 1.0f,
-	0.0f, 0.0f, 1.0f, 1.0f,
-	0.2f, 1.0f, 0.5f, 1.0f,
-};
-long lengthVertexColors = 12;
-
-GLfloat pmatrix[] = {
-	2.0f / 640, 0.0f, 0.0f, 1.0f,
-	0.0f, 2.0f / 480, 0.0f, 1.0f,
-	0.0f, 0.0f, -2.0f, -1.0f,
-	0.0f, 0.0f, -1.0f, 1.0f
-};
-
-GLfloat rmatrix[] = {
-	cos(10), 0.0f, sin(10), 0.0f,
-	0.0f, 1.0f, 0.0f, 0.0f,
-	-sin(10), 0.0f, cos(10), 0.0f,
-	0.0f, 0.0f, 0.0f, 1.0f
-};
-
-GLfloat smatrix[] = {
-	1.0f, 0.0f, 0.0f, 0.0f,
-	0.0f, cos(10), sin(10), 0.0f,
-	0.0f, -sin(10), cos(10), 0.0f,
-	0.0f, 0.0f, 0.0f, 1.0f
-};
-
-float angle = 0.0f;
-
-//GLfloat projectionMatrix[] = {
-//	-1092.394907f,       33.347613f, - 1394.285630f,     1065.236367f,
-//	- 60.737744f, - 1147.162938f,     361.694681f,      261.100936f,
-//	- 1320878.218000f,    14797.158894f, - 828151.565903f, - 3732695.275730f,
-//	0.000000f,        0.000000f, - 1.000000f,        0.000000f
-//};
-
-GLfloat projectionMatrix[] = {
-	3.60291f, -0.0682034f, -0.635952f, -58.0176f,
-	0.0946639f, 4.77029f, 1.30154f, 122.229f,
-	0.234703f, 0.04387f, -1.55057f, -198.061f,
-	0.149602f, 0.0279632f, -0.988351f, -262.8f
-};
-
-//
-//0.000625707, -0.000011845, -0.000110444, -0.010075743,
-//0.000016440, 0.000828442, 0.000226035, 0.021227144,
-//-0.000000432, -0.000000081, 0.000002856, 0.000759492,
-//-0.227169875, -0.199334218, 0.133034288, 17.107157905
+GLfloat *projectionMatrix;
 
 GLfloat depthProjectionMatrix[] = {
 	0.000173667, 0.0f, 0.0f, 0.0f,

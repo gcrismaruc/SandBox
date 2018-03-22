@@ -3,19 +3,15 @@
 
 in vec2 in_Position;
 in float in_ZCoordinate;
-
+in vec4 in_Color;
 
 uniform sampler2DRect texture;
-uniform sampler2D gradient;
 
-in vec2 s_vTexCoord;	// Coming FROM the OpenGL program
-in vec2 gradient_textCoord;
+in vec2 s_vTexCoord;	
 
-uniform mat4 pmatrix;
-uniform mat4 rmatrix;
+out vec2 texCoord;		
+out vec4 color;
 
-out vec2 texCoord;		// Going TO the fragment shader
-out float heightMap;
 
 uniform mat4 viewPort;
 uniform mat4 projMatrix;
@@ -25,15 +21,14 @@ uniform mat4 depthProjMatrix;
 void main()
 {	
 	texCoord = s_vTexCoord;
-	heightMap = in_ZCoordinate;
 
 	float delta = 0.0017505;
 
 	vec4 vertexDic = vec4(1.0);
 	float pz = texture2DRect(texture, s_vTexCoord.xy).r;
-	vec4 pos = vec4(0, 0, 0, 0);
+	vec4 pos = vec4(1, -1, 0, 1);
 	
-	if(in_ZCoordinate != 0) {
+	if(in_ZCoordinate != 2000) {
 	//coordonate in mm
 	float z = -in_ZCoordinate;
 	float x = in_Position.x * z * delta - 320 * z * delta;
@@ -53,7 +48,8 @@ void main()
 	pos.w = 1;
 	} 
 	
-
+	
+	color = in_Color;
 	gl_Position = pos;
 	//gl_Position =  vertexDic;
 }

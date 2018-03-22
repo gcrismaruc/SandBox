@@ -20,11 +20,13 @@ int Calibration::x1 = 0;
 int Calibration::y1 = 0;
 int Calibration::x2 = 640;
 int Calibration::y2 = 480;
-const int Calibration::NR_POINTS = 30;
-int Calibration::THRESH_MAX = 1200;
-int Calibration::THRESH_MIN = 940;
-//int Calibration::THRESH_MAX = 805;
-//int Calibration::THRESH_MIN = 725;
+const int Calibration::NR_POINTS = 60;
+int Calibration::THRESH_MAX = 1255;
+int Calibration::THRESH_MIN = 935;
+int Calibration::WIDTH = 640;
+int Calibration::HEIGHT = 480;
+
+
 double Calibration::zFar = 0.0;
 double Calibration::zNear = 0.0;
 
@@ -38,14 +40,8 @@ int Calibration::lowThreshold = 100;
 
 CvMat *Calibration::solutieQ = cvCreateMat(12, 1, CV_64FC1);
 Mat Calibration::homographyMatrix = Mat(3, 4, CV_32FC1);
-//Mat Calibration::homographyMatrix = Mat(3, 3, CV_32FC1);
 Mat Calibration::projection = Mat(4, 4, CV_32FC1);
 
-
-double Calibration::FX = 5.4735210296154094e+002;
-double Calibration::CX = 3.1075353754346150e+002;
-double Calibration::FY = 5.4392478916448886e+002;
-double Calibration::CY = 2.6349428097343048e+002;
 
 Calibration::Calibration(Aquisition *aquisition) {
 	this->aquisition = *aquisition;
@@ -64,14 +60,12 @@ void Calibration::createAxis(int x1, int y1, int x2, int y2, int x3, int y3, Mat
 	line(*image, Point(x2, y2), Point(x3, y3), Scalar(32000, 32000, 32000), 2, 8);
 }
 
-//adaug punctele pentru proiectie
+
 void Calibration::createAxis(int x, int y, Mat *image) {
 	line(*image, Point(x - 10, y), Point(x + 10, y), Scalar((unsigned short)-1), 1, 8);
 	line(*image, Point(x, y - 10), Point(x, y + 10), Scalar((unsigned short)-1), 1, 8);
 }
 
-//afisez imaginea cu axele si salvez imaginea de la Kinect cand apas tasta 1
-//imaginea este salvata dar totodata detectez cercul si centrul lui
 int Calibration::showAxes(USHORT * imageArray) {
 
 	Mat depthImage = Mat(Size(640, 480), CV_16UC1, imageArray);
@@ -120,7 +114,6 @@ int Calibration::showAxes(USHORT * imageArray) {
 
 int Calibration::getFramesAfterCalibration(USHORT * imageArray){
 	Mat depthImage = Mat(Size(640, 480), CV_16UC1, imageArray);
-	//Mat projectedImage = Mat(Size(640, 480), CV_16UC1, Scalar(0, 0, 0));
 
 	int checkDetectedCircle = -1;
 
@@ -146,14 +139,13 @@ void Calibration::updateCenterOfCurrentCircle() {
 	}	
 }
 
-//achizitionez frame-uri de la Kinect si le transmit la functia de mai sus
 void Calibration::getFrames(){
 
 	ofstream xyp("coordonateXYPuncteDetectate.txt");
 	int a = 0;
 	int count = 0;
 
-	while (count != 70) {
+	while (count != NR_POINTS) {
 		cout << "aici\n";
 		while (a != 49){
 			a = this->showAxes(this->aquisition.Update());
@@ -182,8 +174,6 @@ void Calibration::getFrames(){
 }
 
 void Calibration::CannyThreshold(int, void *) {
-
-
 	Canny(thresh, thresh, lowThreshold, lowThreshold * 3, 3);
 
 	Mat dst;
@@ -206,12 +196,12 @@ int Calibration::detectCircelsForDisplay(Mat eightBitsImage, Mat sixteenBitsImag
 
 	for (int y = 0; y < 480; y++) {
 		for (int x = 0; x < 640; x++) {
-			if (!(sixteenBitsImage.at<ushort>(Point(x, y)) > THRESH_MIN && sixteenBitsImage.at<ushort>(Point(x, y)) < THRESH_MAX))
+			if (!(sixteenBitsImage.at<ushort>(Point(x, y)) >= THRESH_MIN && sixteenBitsImage.at<ushort>(Point(x, y)) <= THRESH_MAX))
 			{
-				thresh.at<uchar>(Point(x, y)) = 0;
+				thresh.at<uchar>(Point(x, y)) = 255;
 			}
 			else {
-				thresh.at<uchar>(Point(x, y)) = 255;
+				thresh.at<uchar>(Point(x, y)) = 0;
 			}
 		}
 	}
@@ -228,11 +218,13 @@ int Calibration::detectCircelsForDisplay(Mat eightBitsImage, Mat sixteenBitsImag
 	HoughCircles(thresh, circles, HOUGH_GRADIENT, 2, thresh.rows / 8, thresholdMaxForHough, 60, 10, 100);
 	int x, y, z;
 	if (circles.size() == 0) {
-
 		retValue = -1;
 	}
 
 	z = 0;
+	x = 0;
+	y = 0;
+
 	if (circles.size() == 1){
 		//for (size_t current_circle = 0; current_circle < circles.size(); ++current_circle) {
 		size_t current_circle = 0;
@@ -243,8 +235,8 @@ int Calibration::detectCircelsForDisplay(Mat eightBitsImage, Mat sixteenBitsImag
 		y = circles[current_circle][1];
 		z = (int)sixteenBitsImage.at<ushort>(Point(x, y));
 
-		cv::circle(thresh, center, radius, cv::Scalar(122, 125, 22), 5);
-		cv::circle(thresh, center, radius, Scalar(0, 33, 255), 3, 8, 0);
+		cv::circle(thresh, center, radius, cv::Scalar(255, 0, 0), 5);
+		cv::circle(thresh, center, radius, Scalar(1322, 0, 0), 3, 8, 0);
 
 		//}
 	}
@@ -252,30 +244,24 @@ int Calibration::detectCircelsForDisplay(Mat eightBitsImage, Mat sixteenBitsImag
 
 	imshow("teststs", thresh);
 	waitKey(1);
+	//iau coordonate in mm
 
-	//Get world coordiantes for center
-	Vector4 worldCoordinates = NuiTransformDepthImageToSkeleton((long)x, (long)y, z << 3, NUI_IMAGE_RESOLUTION_640x480);
-
-	//coordinates in meters
-	//cout << x << " " << y << "real coordinates : " << (worldCoordinates.x * 1000) << " " << (worldCoordinates.y * 1000) << " " << (worldCoordinates.z * 1000) << endl;
+	Vector4 worldCoordinates;
+	worldCoordinates = NuiTransformDepthImageToSkeleton((long)x, (long)y, z << 3, NUI_IMAGE_RESOLUTION_640x480);
 
 	if (x == 48 || y == 48 || worldCoordinates.x == 0 || worldCoordinates.y == 0){
 		retValue = -1;
 	}
-
-	cout << "x = " << x << "y = " << y << "z = " << z << endl;
-
-	float delta = 0.0017505;
-
-
-	//float x = 
-	//float y = ;
 	
-	//save coordinate in milimeters
+	float delta = 0.0017505;
+	
+	//salvez coordinate in milimeters
 	if (retValue == 0){
 		currentXCenter = (x * z * delta - 320 * z * delta) / 10;
 		currentYCenter = (-y * z * delta + 240 * z * delta) / 10;
 		currentZCenter = z / 10;
+		cout << "x = " << currentXCenter << "y = " << currentYCenter << "z = " << currentZCenter << endl;
+
 	}
 	return retValue;
 }
@@ -298,10 +284,10 @@ int Calibration::detectCircleForImage(Mat eightBitsImage, Mat sixteenBitsImage) 
 		for (int x = 0; x < 640; x++) {
 			if (!(sixteenBitsImage.at<ushort>(Point(x, y)) > THRESH_MIN && sixteenBitsImage.at<ushort>(Point(x, y)) < THRESH_MAX))
 			{
-				thresh.at<uchar>(Point(x, y)) = 0;
+				thresh.at<uchar>(Point(x, y)) = 255;
 			}
 			else {
-				thresh.at<uchar>(Point(x, y)) = 255;
+				thresh.at<uchar>(Point(x, y)) = 0;
 			}
 		}
 	}
@@ -316,13 +302,13 @@ int Calibration::detectCircleForImage(Mat eightBitsImage, Mat sixteenBitsImage) 
 
 	int thresholdMaxForHough = 4;
 	HoughCircles(thresh, circles, HOUGH_GRADIENT, 2, thresh.rows / 8, thresholdMaxForHough, 60, 10, 100);
-	int x, y, z;
+	int x = 0;
+	int y = 0;
+	int z = 0;
 	if (circles.size() == 0) {
 
 		retValue = -1;
 	}
-
-	z = 0;
 	if (circles.size() == 1){
 		//for (size_t current_circle = 0; current_circle < circles.size(); ++current_circle) {
 		size_t current_circle = 0;
@@ -333,8 +319,8 @@ int Calibration::detectCircleForImage(Mat eightBitsImage, Mat sixteenBitsImage) 
 		y = circles[current_circle][1];
 		z = (int)sixteenBitsImage.at<ushort>(Point(x, y));
 
-		cv::circle(thresh, center, radius, cv::Scalar(122, 125, 22), 5);
-		cv::circle(thresh, center, radius, Scalar(0, 33, 255), 3, 8, 0);
+		cv::circle(thresh, center, radius, cv::Scalar(125, 12, 21), 5);
+		cv::circle(thresh, center, radius, Scalar(255, 0, 0), 3, 8, 0);
 
 		//}
 	}
@@ -390,7 +376,6 @@ void Calibration::showCircles() {
 					nr_y += y;
 
 					src.at<ushort>(Point(x, y)) = 54000;
-
 				}
 				else {
 					src.at<ushort>(Point(x, y)) = 0;
@@ -441,7 +426,6 @@ void Calibration::sendImageAtClick(Mat* depthImage) {
 
 	cout << imageName << endl;
 	imshow("8bitsTest", depthImageForCircle);
-	//imwrite(imageName, depthImageForCircle, compression_params);
 	detectCircleForImage(depthImageForCircle, *depthImage);
 	nrFrame++;
 }
@@ -479,14 +463,6 @@ void Calibration::getMouseCoordinates(){
 		setMouseCallback("GetCoordinates", CallBackFunc, NULL);
 		imshow("GetCoordinates", img);
 		waitKey(10);
-
-		/*if(nrClick == 1){
-			cout<<"x1 = "<<x1<<" y1 = "<<y1<<" z = "<<img.at<ushort>(Point(x1, y1))<<endl;
-			}
-
-			if(nrClick == 2){
-			cout<<"x2 = "<<x2<<" y2 = "<<y2<<" z = "<<img.at<ushort>(x2, y2)<<endl;
-			}*/
 	}
 
 	cvDestroyWindow("GetCoordinates");
@@ -513,7 +489,7 @@ void Calibration::setROI(Mat &img, int x1, int x2, int y1, int y2){
 }
 
 //salvez coordonatele pentru proiector in fisier, dupa ce la generez random
-void Calibration::savePointsForAxes(){
+void Calibration::genereazaPuncteAleatoare(){
 
 	ofstream g("coordonateProiector.txt");
 	ofstream f("coordinates.txt");
@@ -525,13 +501,36 @@ void Calibration::savePointsForAxes(){
 	uniform_int_distribution<int> y_rnd(30, y2 - 70);
 
 
-	for (int i = 0; i < 70; i++){
+	for (int i = 0; i < NR_POINTS; i++){
 		int x = x_rnd(rng);
 		int y = y_rnd(rng);
 
 		f << x << " " << y << endl;
 		g << x << " " << y << endl;
 		cout << x << " " << y << endl;
+	}
+
+	f.close();
+	g.close();
+}
+
+
+void Calibration::genereazaPuncteLaPozitiiSpecificate() {
+	ofstream g("coordonateProiector.txt");
+	ofstream f("coordinates.txt");
+
+	int xPas = (550 * 3) / NR_POINTS;
+	int yPas = 380 / 2;
+
+	for (int y = 30; y <= 480; y += yPas) {
+		for (int x = 45; x <= 580; x += xPas) {
+
+			f << x << " " << y << endl;
+			g << x << " " << y << endl;
+
+			cout << x << " " << y << endl;
+		}
+			
 	}
 
 	f.close();
@@ -545,34 +544,15 @@ void Calibration::detectCircle(){
 
 	INuiCoordinateMapper *mapper;
 
-
-
 	this->aquisition.m_pNuiSensor->NuiGetCoordinateMapper(&mapper);
 
-
 	cvNamedWindow("circle", CV_WINDOW_NORMAL);
-	//setMouseCallback("circle", CallBackFunc, NULL);
 	for (int y = 0; y < 480; y++)
 	for (int x = 1; x < 640; x++)
 		image.at<ushort>(y, x) += 5000;
 
 	imshow("circle", image);
 	waitKey(10);
-
-	/*for(int i = 1; i < 10; i++){
-
-		threshold(image, dst, p[0], 255, THRESH_BINARY);
-
-		imshow("dddd", dst);
-		waitKey(0);
-		ostringstream imageName;
-		imageName<<"calibration\\calibration" + to_string(i) << ".jpg";
-		image = imread(imageName.str().c_str());
-		cvtColor( image, image, CV_BGR2GRAY );
-		imshow("dddd", image);
-		waitKey(0);
-		}*/
-
 }
 
 void Calibration::zhangEstimation(){
@@ -970,7 +950,6 @@ void Calibration::getCoef(){
 		}
 	}
 
-
 	//create projection matrix
 	for (int i = 0; i < 2; i++){
 		for (int j = 0; j < 4; j++){
@@ -1083,6 +1062,13 @@ void Calibration::getCoef(){
 	}
 
 
+	ofstream file("calibration.txt");
+	for (int i = 0; i < 4; i++){
+		for (int j = 0; j < 4; j++){
+			file << projection.at<float>(i, j) << "\n";
+		}
+	}
+	file.close();
 	logFile.close();
 }
 
@@ -1708,45 +1694,5 @@ void Calibration::solvePnP(){
 	file.close();
 }
 
-void Calibration::loadCalibration(){
-	std::vector<Point2f> puncteProiector;
-	std::vector<Point3f> puncteKinect;
-	float x, y, z;
-	//citesc coordonatele proiectate({x,y})
-	ifstream proiectorFile("coordonateProiector.txt");
-	for (int i = 0; i < NR_POINTS; i++){
-		proiectorFile >> x >> y;
-		puncteProiector.push_back(Point2f(x, y));
-	}
-
-	//citesc coordonatele detectate(centrul cercurilor {x, y, z})
-	ifstream kinectFile("coordonateDetectate.txt");
-	ifstream pp("coordonateXYPuncteDetectate.txt");
-	for (int i = 0; i < NR_POINTS; i++){
-		kinectFile >> x >> y >> z;
-		pp >> x >> y;
-		puncteKinect.push_back(Point3f(x, y, z));
-	}
-
-	pp.close();
-	proiectorFile.close();
-	kinectFile.close();
-
-	vector<pair<Point3f, pair<Point2f, Point2f>>> perechi;
-	int index = 0;
-	for (auto point : puncteKinect){
-		Point2f * pointProjector = this->transformPoint(point);
-
-		perechi.push_back(make_pair(point, make_pair(puncteProiector.at(index), *pointProjector)));
-
-		index++;
-	}
-
-	ofstream file("perechi.txt");
-
-	for (auto pereche : perechi){
-		file << pereche.first.x << setw(20) << pereche.first.y << setw(20) << pereche.first.z << "  ; " << pereche.second.first.x << setw(20)
-			<< pereche.second.first.y << "      " << pereche.second.second.x << setw(20) << pereche.second.second.y << endl;
-	}
-	file.close();
+void Calibration::loadCalibration(){	
 }

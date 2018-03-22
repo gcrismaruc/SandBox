@@ -10,13 +10,12 @@ using namespace cv;
 class Calibration {
 
 public:
-	static double FX;
-	static double CX;
-	static double FY;
-	static double CY; 
 	static int THRESH_MIN;
 	static int THRESH_MAX;
 	static const int NR_POINTS;
+	static int WIDTH;
+	static int HEIGHT;
+
 
 	Aquisition aquisition;
 	static int nrFrame;
@@ -65,7 +64,8 @@ public:
 	static void CallBackFunc(int event, int x, int y, int flags, void* userdata);
 	void getMouseCoordinates();
 	void setROI(Mat &img, int x1, int x2, int y1, int y2);
-	void savePointsForAxes();
+	void genereazaPuncteAleatoare();
+	void genereazaPuncteLaPozitiiSpecificate();
 	void detectCircle();
 	void getCoef();
 	Point2f * transformPoint(Point3f kinect);

@@ -1,52 +1,7 @@
-﻿Build started 6/21/2017 6:44:53 PM.
+﻿Build started 7/7/2017 12:11:48 PM.
      1>Project "E:\Licenta\Licenta001\Licenta001.vcxproj" on node 2 (Build target(s)).
-     1>ClCompile:
-         C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\x86_amd64\CL.exe /c /I"C:\Program Files\Microsoft SDKs\Kinect\v1.8\inc" /I"C:\Program Files\opencv\build\x64\vc12\..\..\include" /I"C:\Program Files\freeglut\include" /I"C:\Program Files\glew-2.0.0\include" /Zi /nologo /W3 /WX- /Od /D WIN32 /D _DEBUG /D _CONSOLE /D _UNICODE /D UNICODE /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"x64\Debug\\" /Fd"x64\Debug\vc120.pdb" /Gd /TP /errorReport:prompt Calibration.cpp main.cpp
-         main.cpp
-     1>e:\licenta\licenta001\stdafx.h(11): warning C4005: 'WIN32_LEAN_AND_MEAN' : macro redefinition
-                 c:\program files\freeglut\include\gl\freeglut_std.h(58) : see previous definition of 'WIN32_LEAN_AND_MEAN'
-     1>e:\licenta\licenta001\Header.h(103): warning C4244: 'initializing' : conversion from 'double' to 'GLfloat', possible loss of data
-     1>e:\licenta\licenta001\Header.h(110): warning C4244: 'initializing' : conversion from 'double' to 'GLfloat', possible loss of data
-     1>e:\licenta\licenta001\Header.h(139): warning C4305: 'initializing' : truncation from 'double' to 'GLfloat'
-     1>main.cpp(99): warning C4244: '=' : conversion from 'GLfloat' to 'GLuint', possible loss of data
-     1>main.cpp(100): warning C4244: '=' : conversion from 'GLfloat' to 'GLuint', possible loss of data
-     1>main.cpp(234): warning C4267: 'initializing' : conversion from 'size_t' to 'const GLint', possible loss of data
-     1>main.cpp(255): warning C4267: 'initializing' : conversion from 'size_t' to 'const GLint', possible loss of data
-     1>main.cpp(313): warning C4101: 'height' : unreferenced local variable
-     1>main.cpp(313): warning C4101: 'width' : unreferenced local variable
-     1>main.cpp(420): warning C4101: 'a' : unreferenced local variable
-     1>main.cpp(495): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
-     1>main.cpp(615): warning C4305: 'argument' : truncation from 'double' to 'GLclampf'
-         Calibration.cpp
-     1>Calibration.cpp(240): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
-     1>Calibration.cpp(241): warning C4244: 'initializing' : conversion from 'float' to 'int', possible loss of data
-     1>Calibration.cpp(243): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
-     1>Calibration.cpp(244): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
-     1>Calibration.cpp(269): warning C4305: 'initializing' : truncation from 'double' to 'float'
-     1>Calibration.cpp(279): warning C4244: '=' : conversion from 'int' to 'float', possible loss of data
-     1>Calibration.cpp(206): warning C4101: 'noComp' : unreferenced local variable
-     1>Calibration.cpp(330): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
-     1>Calibration.cpp(331): warning C4244: 'initializing' : conversion from 'float' to 'int', possible loss of data
-     1>Calibration.cpp(333): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
-     1>Calibration.cpp(334): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
-     1>Calibration.cpp(360): warning C4244: 'argument' : conversion from 'int' to 'float', possible loss of data
-     1>Calibration.cpp(296): warning C4101: 'noComp' : unreferenced local variable
-     1>Calibration.cpp(949): warning C4244: 'initializing' : conversion from 'double' to 'float', possible loss of data
-     1>Calibration.cpp(970): warning C4244: '/=' : conversion from 'double' to 'float', possible loss of data
-     1>Calibration.cpp(1004): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
-     1>Calibration.cpp(1005): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
-     1>Calibration.cpp(1006): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
-     1>Calibration.cpp(1031): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
-     1>Calibration.cpp(1033): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
-     1>Calibration.cpp(1049): warning C4305: '=' : truncation from 'double' to 'float'
-     1>Calibration.cpp(1051): warning C4305: '=' : truncation from 'double' to 'float'
-     1>Calibration.cpp(1053): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
-     1>Calibration.cpp(1054): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
-     1>Calibration.cpp(1515): warning C4129: 'm' : unrecognized character escape sequence
-     1>Calibration.cpp(1552): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
-         Generating Code...
-       Link:
-         C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\x86_amd64\link.exe /ERRORREPORT:PROMPT /OUT:"E:\Licenta\Licenta001\x64\Debug\Licenta001.exe" /INCREMENTAL /NOLOGO /LIBPATH:"C:\Program Files\Microsoft SDKs\Kinect\v1.8\lib\amd64\\" /LIBPATH:"C:\Program Files\opencv\build\x64\vc12\lib" /LIBPATH:"C:\Program Files\freeglut\lib\x64" /LIBPATH:"C:\Program Files\glew-2.0.0\lib\Debug\x64" Kinect10.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib opencv_world310.lib freeglut.lib glew32d.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"E:\Licenta\Licenta001\x64\Debug\Licenta001.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"E:\Licenta\Licenta001\x64\Debug\Licenta001.lib" /MACHINE:X64 x64\Debug\Aquisition.obj
+     1>Link:
+         C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\x86_amd64\link.exe /ERRORREPORT:PROMPT /OUT:"E:\Licenta\Licenta001\x64\Debug\Licenta001.exe" /INCREMENTAL /NOLOGO /LIBPATH:"C:\Program Files\Microsoft SDKs\Kinect\v1.8\lib\amd64\\" /LIBPATH:"C:\Program Files\opencv\build\x64\vc12\lib" /LIBPATH:"C:\Program Files\freeglut\lib\x64" /LIBPATH:"C:\Program Files\glew-2.0.0\lib\Debug\x64" Kinect10.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib opencv_world310d.lib freeglut.lib glew32d.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"E:\Licenta\Licenta001\x64\Debug\Licenta001.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"E:\Licenta\Licenta001\x64\Debug\Licenta001.lib" /MACHINE:X64 x64\Debug\Aquisition.obj
          x64\Debug\Calibration.obj
          x64\Debug\DepthMap.obj
          x64\Debug\main.obj
@@ -55,4 +10,4 @@
 
 Build succeeded.
 
-Time Elapsed 00:00:05.22
+Time Elapsed 00:00:00.35
